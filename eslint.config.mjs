@@ -5,6 +5,12 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    // Scene three.js memang diubah langsung (posisi, visibilitas, material) tiap frame,
+    // yang dianggap pelanggaran oleh aturan immutability React Compiler.
+    files: ["components/scene/**"],
+    rules: { "react-hooks/immutability": "off" },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
