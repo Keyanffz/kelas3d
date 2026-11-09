@@ -51,10 +51,17 @@ export interface Presence {
   state_since: string | null;
   last_heartbeat_at: string | null;
   help_request: { id: number; note: string | null; status: HelpStatus } | null;
-  // Tiga field ini cuma dikirim untuk koordinator dan ketua kelas.
+  // Field di bawah ini cuma dikirim untuk koordinator dan ketua kelas.
   project?: string | null;
   file_name?: string | null;
   language?: string | null;
+  // Aplikasi lain yang jendelanya terbuka, terakhir dipakai dulu. Null kalau agent belum bisa membacanya.
+  open_apps?: OpenApp[] | null;
+}
+
+export interface OpenApp {
+  activity: Activity;
+  label: string;
 }
 
 export interface Coordinator {

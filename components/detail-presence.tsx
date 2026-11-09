@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 import { api, errorMessage } from "@/lib/api";
-import { formatClock, HELP_LABEL, STATE_LABEL, subAktivitas } from "@/lib/presence";
+import { ACTIVITY_LABEL, formatClock, HELP_LABEL, STATE_LABEL, subAktivitas } from "@/lib/presence";
+import { LAYAR } from "@/lib/scene/keadaan";
 import type { HelpStatus, Presence } from "@/lib/types";
 import { lama, STATE_COLOR, useNow } from "./daftar-presence";
 
@@ -77,6 +78,20 @@ export function DetailPresence({
           <span className="font-mono">{p.file_name ?? "—"}</span>
         </Baris>
         <Baris k="Bahasa">{p.language ?? "—"}</Baris>
+        <Baris k="Juga terbuka">
+          {p.state === "keluar" || !p.open_apps?.length ? (
+            "—"
+          ) : (
+            <ul className="space-y-0.5">
+              {p.open_apps.map((a) => (
+                <li key={a.label} title={ACTIVITY_LABEL[a.activity]}>
+                  <span className="mr-1.5 inline-block size-2.5" style={{ backgroundColor: LAYAR[a.activity] }} />
+                  {a.label} <span className="text-pudar">· {ACTIVITY_LABEL[a.activity]}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Baris>
         <Baris k="Heartbeat">{p.last_heartbeat_at ? `${formatClock(p.last_heartbeat_at)} WIB` : "Belum pernah"}</Baris>
       </dl>
 

@@ -60,7 +60,8 @@ export function tujuanKunjungan(slug: string, titik: string[]): Tujuan {
   return { kind: "berdiri", point: via[via.length - 1], clip: "diam", via: via.slice(0, -1) };
 }
 
-const LAYAR: Record<Activity, string> = {
+// Dipakai juga sebagai penanda kategori di daftar aplikasi terbuka.
+export const LAYAR: Record<Activity, string> = {
   ngoding: "#2563eb",
   vibe_coding: "#9333ea",
   ngolah_data: "#16a34a",

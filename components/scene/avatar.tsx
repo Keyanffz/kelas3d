@@ -106,6 +106,9 @@ export function useAvatar(gltf: GLTF, rakitan: Rakitan) {
   useEffect(
     () => () => {
       mixer.stopAllAction();
+      // Strict Mode dan Activity memasang ulang efek dengan root yang sama; tanpa ini play() mengira
+      // klip yang sudah dihentikan masih jalan, dan avatar diam di pose dasar.
+      sekarang.current = null;
       // Geometri dan bahan dibuat per avatar, jadi dibuang sendiri.
       root.traverse((o) => {
         if (!(o instanceof SkinnedMesh)) return;

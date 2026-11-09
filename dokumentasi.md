@@ -63,11 +63,19 @@ php artisan kelas3d:simulasi developer --hapus
 
 Penjelasan opsinya ada di `kelas3d-api/dokumentasi.md` bagian Simulasi. Hapus anggota palsu sebelum demo.
 
+### Uji alur peserta dengan agent sungguhan
+
+```bash
+cd ../kelas3d-agent && ./sajikan.sh localhost
+```
+
+Lalu sebagai koordinator: Kelola, tab Anggota & ketua, "Buat perintah install" di nama peserta, tempel perintah macOS/Linux di terminal, dan jalankan `kelas3d buka`. Link dari `kelas3d buka` terbuka di browser bawaan dan sesi peserta menimpa sesi koordinator di browser yang sama, jadi buka koordinator di jendela private atau browser lain. Sesudah selesai: `kelas3d uninstall`, dan revoke laptopnya di panel.
+
 ## Demo di jaringan kelas
 
-Laptop Key jadi server, laptop peserta tersambung lewat WiFi yang sama. Semua alamat memakai IP laptop Key, termasuk saat dibuka dari laptop Key sendiri, karena CORS API cuma menerima satu origin (`FRONTEND_URL`). Contoh di bawah memakai `192.168.1.11`.
+Laptop Key jadi server, laptop peserta tersambung lewat WiFi kampus yang sama, dan agent diunduh dari laptop Key (tanpa internet dan tanpa GitHub Releases). Semua alamat memakai IP laptop Key, termasuk saat dibuka dari laptop Key sendiri, karena CORS API cuma menerima satu origin (`FRONTEND_URL`). Contoh di bawah memakai `192.168.1.11`.
 
-1. Cari IP laptop di WiFi itu: `ip -4 -o addr show scope global`. IP bisa berubah tiap ganti WiFi, jadi ulangi langkah ini di lokasi presentasi.
+1. Sambungkan laptop ke WiFi kelas, lalu cari IP-nya: `ip -4 -o addr show scope global`. IP bisa berubah tiap ganti WiFi atau sambung ulang, jadi kerjakan di lokasi dan jangan putuskan WiFi selama demo.
 2. `.env` API:
 
    ```env
@@ -77,7 +85,7 @@ Laptop Key jadi server, laptop peserta tersambung lewat WiFi yang sama. Semua al
    SERVER_HOST=0.0.0.0
    ```
 
-   `SERVER_HOST` membuat `php artisan serve` (bagian dari `composer dev`) mendengarkan di semua antarmuka, bukan cuma `127.0.0.1`. Reverb sudah mendengarkan di `0.0.0.0` dari awal (`REVERB_SERVER_HOST`), dan `REVERB_HOST=localhost` tetap, karena itu alamat yang dipakai Laravel sendiri untuk mengirim event. `SESSION_DOMAIN=null` membuat cookie sesi berlaku untuk host IP itu di port 3000 maupun 8000. Perintah install dan link masuk ikut memakai `APP_URL` dan `FRONTEND_URL` ini. Kalau config pernah di-cache, jalankan `php artisan config:clear`.
+   `SERVER_HOST` membuat `php artisan serve` (bagian dari `composer dev`) mendengarkan di semua antarmuka, bukan cuma `127.0.0.1`. Reverb sudah mendengarkan di `0.0.0.0` dari awal (`REVERB_SERVER_HOST`) dan menerima origin mana pun, sedangkan `REVERB_HOST=localhost` tetap, karena itu alamat yang dipakai Laravel sendiri untuk mengirim event. `SESSION_DOMAIN=null` membuat cookie sesi berlaku untuk host IP itu di port 3000 maupun 8000. Perintah install dan link masuk ikut memakai `APP_URL` dan `FRONTEND_URL` ini. Kalau config pernah di-cache, jalankan `php artisan config:clear`.
 3. `.env.local` web:
 
    ```env
@@ -85,7 +93,8 @@ Laptop Key jadi server, laptop peserta tersambung lewat WiFi yang sama. Semua al
    NEXT_PUBLIC_REVERB_HOST=192.168.1.11
    ```
 
-4. Jalankan:
+4. Agent untuk IP itu, disajikan dari API: `./sajikan.sh 192.168.1.11` di `kelas3d-agent` (lihat `kelas3d-agent/dokumentasi.md` bagian Menyajikan dari server API).
+5. Jalankan:
 
    ```bash
    cd ../kelas3d-api && composer dev
@@ -93,9 +102,12 @@ Laptop Key jadi server, laptop peserta tersambung lewat WiFi yang sama. Semua al
    ```
 
    `next start` lebih ringan untuk presentasi. Kalau mau `next dev`, pakai `npx next dev -H 0.0.0.0`; `allowedDevOrigins` di `next.config.ts` otomatis berisi host dari `NEXT_PUBLIC_API_URL`, jadi dev server menerima akses lewat IP itu.
-5. Port 3000 (web), 8000 (API), dan 8080 (Reverb) harus terbuka. Di laptop Key saat ini tidak ada firewall yang aktif (ufw, firewalld, dan nftables mati). Kalau nanti dinyalakan, contoh untuk ufw: `sudo ufw allow 3000,8000,8080/tcp`.
-6. Agent di-build dengan alamat server itu: `SERVER_URL=http://192.168.1.11:8000/api ./build.sh` di `kelas3d-agent` (lihat `kelas3d-agent/dokumentasi.md` bagian Build dan rilis).
-7. Cek dari laptop lain: buka `http://192.168.1.11:3000/login`, lalu pastikan header menampilkan "Realtime tersambung" sesudah masuk.
+6. Cek dari HP atau laptop lain di WiFi yang sama: buka `http://192.168.1.11:8000/up`, lalu `http://192.168.1.11:3000/login`. Kalau dari laptop Key terbuka tapi dari perangkat lain tidak, WiFi kampus memblokir koneksi antarperangkat (isolasi klien). Pindahkan semua laptop ke hotspot HP, lalu ulangi dari langkah 1 dengan IP baru.
+7. Port 3000 (web), 8000 (API), dan 8080 (Reverb) harus terbuka. Di laptop Key saat ini tidak ada firewall yang aktif (ufw, firewalld, dan nftables mati). Kalau nanti dinyalakan, contoh untuk ufw: `sudo ufw allow 3000,8000,8080/tcp`.
+8. Pastikan jam presentasi ada di jadwal `kelas` kedua kelas (Kelola, tab Kelas & jadwal), karena agent diam di luar jadwal. Jadwal bawaan Senin–Jumat 08.00–16.00 dengan istirahat 12.00–13.00 (Jumat 11.30–13.00); selama istirahat semua avatar pindah ke beanbag dan titik berdiri.
+9. Masuk sebagai koordinator di `http://192.168.1.11:3000/login`, buat perintah install untuk tiap peserta (Kelola atau panel ketua kelas), lalu peserta menempelnya di PowerShell atau terminal. Pastikan header menampilkan "Realtime tersambung". Tambahkan semua peserta dan buka Gedung sebelum mereka menempel perintah: avatar cuma terlihat jalan masuk dari pintu gedung kalau halamannya sudah terbuka saat heartbeat pertama datang. Avatar yang sudah di kelas saat halaman dibuka langsung tampil di tujuannya, dan anggota yang ditambahkan sesudah halaman dibuka baru muncul setelah halaman dimuat ulang.
+
+Alamat server tertanam di biner dan tersimpan di agent saat login. Kalau IP laptop Key berubah sesudah peserta terpasang, ulangi langkah 2 sampai 5, lalu peserta memasang ulang dengan kode baru.
 
 ## Struktur kode
 
@@ -276,3 +288,32 @@ File diubah:
 - `components/form-pengumuman.tsx`: daftar "Terkirim hari ini" di bawah form koordinator.
 - `components/pengumuman.tsx`: komentar disesuaikan.
 - `app/(app)/gedung/page.tsx`: riwayat diteruskan ke form pengumuman.
+
+### 2026-11-09 · Persiapan uji agent dan demo
+
+Keputusan Key: agent disajikan dari laptop server lewat `kelas3d-agent/sajikan.sh`, dan presentasi memakai WiFi kampus.
+
+File diubah:
+
+- `dokumentasi.md`: langkah demo di jaringan kelas disusun ulang (agent dari `sajikan.sh`, cek isolasi klien WiFi kampus dengan `/up`, cadangan hotspot HP, cek jadwal, apa yang diulang kalau IP berubah), dan cara menguji alur peserta dengan agent sungguhan di laptop sendiri.
+
+### 2026-11-09 · Avatar berdiri di Gedung koordinator
+
+Ditemukan saat uji dengan agent sungguhan: di Gedung koordinator (denah dan Jelajah) avatar ketua kelas berdiri di depan kursinya, padahal di halaman kelasnya sendiri avatar yang sama mengetik. Avatar yang dibuat langsung di tujuannya memutar klipnya sekali di konstruktor `Gerak`. Strict Mode di `next dev` (diteruskan R3F ke dalam Canvas) memasang efek dua kali, dan cleanup `useAvatar` menghentikan semua klip. Saat dipasang lagi, `play()` mengira klip yang sama masih jalan, jadi avatar diam di pose dasar sampai klipnya berganti. Pola bongkar-pasang yang sama kemungkinan juga terjadi di `next start` saat halaman disembunyikan lalu ditampilkan lagi lewat React `Activity` (`cacheComponents`), misalnya Gedung, Kelola, lalu Gedung lagi.
+
+File diubah:
+
+- `components/scene/avatar.tsx`: cleanup `useAvatar` juga mengosongkan klip terakhir, supaya `play()` berikutnya memutar ulang klipnya. Berlaku juga untuk pratinjau pemilih avatar.
+- `dokumentasi.md`: langkah 9 Demo di jaringan kelas, buka Gedung sebelum peserta menempel perintah supaya avatar terlihat jalan masuk.
+
+### 2026-11-09 · Daftar aplikasi yang terbuka
+
+Panel detail peserta (koordinator dan ketua kelas) punya baris "Juga terbuka": aplikasi lain yang jendelanya terbuka di laptop peserta, terakhir dipakai dulu, dengan kotak warna kategori yang sama dengan warna layar laptop di scene. Datanya dari `open_apps` di `GET /api/classrooms/{slug}/presences`, dan ikut segar lewat pengambilan ulang detail staf sesudah `PresenceChanged` yang sudah ada.
+
+File diubah:
+
+- `lib/types.ts`: `OpenApp` dan `Presence.open_apps`.
+- `lib/scene/keadaan.ts`: `LAYAR` diekspor.
+- `components/detail-presence.tsx`: baris "Juga terbuka".
+
+Tes: `npx tsc --noEmit`, `npx eslint` untuk file yang berubah, `npx vitest run` (36 tes) lulus. `npm run build` belum dijalankan karena `next start` sedang memakai `.next`; tampilan belum dicek di browser.
