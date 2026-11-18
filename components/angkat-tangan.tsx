@@ -2,14 +2,19 @@
 
 import { useState, type FormEvent } from "react";
 import { api, errorMessage } from "@/lib/api";
+import { sesiAktif } from "@/lib/layar";
 import type { Presence } from "@/lib/types";
+import { useLayar } from "./layar/penyedia";
 
 // Peserta minta bantuan; avatarnya memakai klip angkat_tangan sampai tangannya diturunkan atau ditandai selesai.
+// Begitu ada yang menangani, peserta bisa membagikan layarnya sendiri ke orang itu.
 export function AngkatTangan({ slug, saya }: { slug: string; saya: Presence | undefined }) {
   const [buka, setBuka] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { sesi, bagikan } = useLayar();
   const help = saya?.help_request;
+  const berbagi = help ? sesi.some((s) => s.help_request_id === help.id && sesiAktif(s)) : false;
 
   async function jalankan(fn: () => Promise<unknown>) {
     setBusy(true);
@@ -33,7 +38,12 @@ export function AngkatTangan({ slug, saya }: { slug: string; saya: Presence | un
     <div className="relative flex items-center gap-2">
       {help ? (
         <>
-          <span className="tag text-oranye">{help.status === "ditangani" ? "Sedang dibantu" : "Tangan terangkat"}</span>
+          <span className="tag text-oranye">{help.handled_by ? `Dibantu ${help.handled_by.name}` : "Tangan terangkat"}</span>
+          {help.status === "ditangani" && help.handled_by && !berbagi && (
+            <button type="button" className="tombol" disabled={busy} onClick={() => jalankan(() => bagikan(help.id))}>
+              Bagikan layar
+            </button>
+          )}
           <button
             type="button"
             className="tombol"

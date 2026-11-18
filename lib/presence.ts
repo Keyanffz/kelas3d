@@ -2,6 +2,7 @@ import type {
   Activity,
   CoordinatorMovedEvent,
   HelpRequestedEvent,
+  HelpRequestOpen,
   HelpStatus,
   Coordinator,
   NudgeSentEvent,
@@ -48,6 +49,7 @@ export function applyPresenceChanged(list: Presence[], e: PresenceChangedEvent):
       activity: e.activity,
       app_label: e.app_label,
       state_since: e.state_since,
+      focus: e.focus,
     };
     // Server mengosongkan detail kerjaan saat keluar; event tidak membawanya, jadi ikut dikosongkan di sini.
     if (e.state === "keluar" && "project" in p) {
@@ -63,8 +65,22 @@ export function applyHelpRequested(list: Presence[], e: HelpRequestedEvent): Pre
   return list.map((p) =>
     p.user.id !== e.user.id
       ? p
-      : { ...p, help_request: e.status === "selesai" ? null : { id: e.id, note: e.note, status: e.status } },
+      : {
+          ...p,
+          help_request: e.status === "selesai" ? null : { id: e.id, note: e.note, status: e.status, handled_by: e.handled_by, created_at: e.created_at },
+        },
   );
+}
+
+// Antrean bantuan satu kelas: yang belum ditangani dulu, lalu urut waktu angkat tangan.
+export function antreanBantuan(list: Presence[]): (Presence & { help_request: HelpRequestOpen })[] {
+  return list
+    .filter((p): p is Presence & { help_request: HelpRequestOpen } => p.help_request !== null)
+    .sort(
+      (a, b) =>
+        Number(a.help_request.status !== "menunggu") - Number(b.help_request.status !== "menunggu") ||
+        new Date(a.help_request.created_at).getTime() - new Date(b.help_request.created_at).getTime(),
+    );
 }
 
 // Koordinator yang berkunjung: masuk daftar kelas tujuan, keluar dari daftar kelas asal.

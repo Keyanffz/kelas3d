@@ -95,6 +95,7 @@ function Baris({ p, staff, now, onSelect }: { p: Presence; staff: boolean; now: 
       <td>
         <span className="mr-2">{p.user.name}</span>
         {p.role === "admin" && <span className="tag text-marun">Ketua Kelas</span>}
+        {p.focus && <span className="tag ml-1">🎧 Fokus</span>}
       </td>
       <td className="whitespace-nowrap">
         <span className={`mr-1.5 inline-block size-2.5 ${STATE_COLOR[p.state]}`} />

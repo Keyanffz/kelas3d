@@ -2,10 +2,12 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 import { api, errorMessage } from "@/lib/api";
+import { sesiAktif, STATUS_LAYAR } from "@/lib/layar";
 import { ACTIVITY_LABEL, formatClock, HELP_LABEL, STATE_LABEL, subAktivitas } from "@/lib/presence";
 import { LAYAR } from "@/lib/scene/keadaan";
 import type { HelpStatus, Presence } from "@/lib/types";
 import { lama, STATE_COLOR, useNow } from "./daftar-presence";
+import { useLayar } from "./layar/penyedia";
 
 // Detail kerjaan satu peserta untuk koordinator dan ketua kelas, beserta tindak lanjut bantuan dan teguran.
 export function DetailPresence({
@@ -13,6 +15,7 @@ export function DetailPresence({
   slug,
   bisaTegur,
   berkunjung,
+  onLayar,
   onClose,
 }: {
   p: Presence;
@@ -20,11 +23,15 @@ export function DetailPresence({
   // Cuma koordinator yang bisa minta ketua kelas mengecek peserta.
   bisaTegur: boolean;
   berkunjung: boolean;
+  // Koordinator minta lihat layar peserta ini lewat ketua kelas.
+  onLayar?: (alasan: string | null) => Promise<void>;
   onClose: () => void;
 }) {
   const now = useNow();
   const [pesan, setPesan] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { sesi } = useLayar();
+  const layar = sesi.find((s) => s.target.id === p.user.id && sesiAktif(s));
   const idle = p.state === "istirahat" && (p.state_reason === "idle" || p.state_reason === "terputus");
 
   async function bantuan(status: HelpStatus) {
@@ -46,6 +53,19 @@ export function DetailPresence({
     try {
       await api("/api/nudges", { method: "POST", body: { classroom: slug, about_user_id: p.user.id, message } });
       setPesan("Teguran terkirim ke ketua kelas.");
+    } catch (e) {
+      setPesan(errorMessage(e));
+    }
+    setBusy(false);
+  }
+
+  async function mintaLayar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const alasan = new FormData(event.currentTarget).get("alasan");
+    setBusy(true);
+    try {
+      await onLayar?.(typeof alasan === "string" && alasan.trim() ? alasan.trim() : null);
+      setPesan(null);
     } catch (e) {
       setPesan(errorMessage(e));
     }
@@ -101,6 +121,7 @@ export function DetailPresence({
             <span className="tag mr-2 text-oranye">{HELP_LABEL[p.help_request.status]}</span>
             {p.help_request.note ?? "Tanpa catatan"}
           </p>
+          {p.help_request.handled_by && <p className="label-mono mt-1">Ditangani {p.help_request.handled_by.name}</p>}
           <div className="mt-2 flex gap-2">
             {p.help_request.status === "menunggu" && (
               <button type="button" className="tombol" disabled={busy} onClick={() => bantuan("ditangani")}>
@@ -135,6 +156,26 @@ export function DetailPresence({
               </label>
               <button type="submit" className="tombol" disabled={busy}>
                 Kirim ke ketua kelas
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+      {onLayar && (
+        <div className="border-t-2 border-dashed border-tinta px-4 py-3">
+          {layar ? (
+            <p className="text-sm">
+              <span className="tag mr-2 text-oranye">Lihat layar</span>
+              {STATUS_LAYAR[layar.status]}
+            </p>
+          ) : (
+            <form onSubmit={mintaLayar} className="space-y-2">
+              <label className="block">
+                <span className="label-mono">Lihat layar lewat ketua kelas</span>
+                <input name="alasan" maxLength={255} className="mt-1 w-full border-2 border-tinta bg-white px-2 py-1 text-sm" placeholder="Alasan singkat (boleh kosong)" />
+              </label>
+              <button type="submit" className="tombol" disabled={busy}>
+                Minta lihat layar
               </button>
             </form>
           )}

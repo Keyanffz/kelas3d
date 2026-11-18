@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { KURSI } from "@/lib/kursi";
+import { keteranganLayar } from "@/lib/layar";
 import { applyNudge, formatClock } from "@/lib/presence";
-import type { Device, InstallCode, Member, Nudge } from "@/lib/types";
+import type { Device, InstallCode, Member, Nudge, ScreenSession } from "@/lib/types";
 import type { Teguran } from "@/lib/use-rooms";
 
-type Tab = "anggota" | "laptop" | "teguran";
+type Tab = "anggota" | "laptop" | "layar" | "teguran";
 
-// Panel ketua kelas: anggota dan kursi, perintah install agent, laptop, dan teguran.
+// Panel ketua kelas: anggota dan kursi, perintah install agent, laptop, log lihat layar, dan teguran.
 // Koordinator memakai panel yang sama di halaman Kelola, ditambah penunjukan ketua dan ubah avatar.
 export function PanelKetua({
   slug,
@@ -27,7 +28,7 @@ export function PanelKetua({
   onAvatar?: (m: Member) => void;
 }) {
   const [tab, setTab] = useState<Tab>("anggota");
-  const tabs: Tab[] = teguran ? ["anggota", "laptop", "teguran"] : ["anggota", "laptop"];
+  const tabs: Tab[] = teguran ? ["anggota", "laptop", "layar", "teguran"] : ["anggota", "laptop", "layar"];
   const terbuka = teguran?.filter((n) => n.status !== "selesai").length ?? 0;
 
   return (
@@ -47,6 +48,7 @@ export function PanelKetua({
       </nav>
       {tab === "anggota" && <Anggota slug={slug} koordinator={koordinator} onBerubah={onBerubah} onAvatar={onAvatar} />}
       {tab === "laptop" && <Laptop slug={slug} />}
+      {tab === "layar" && <LogLayar slug={slug} />}
       {tab === "teguran" && teguran && setTeguran && <DaftarTeguran list={teguran} setList={setTeguran} />}
     </div>
   );
@@ -317,6 +319,53 @@ function Laptop({ slug }: { slug: string }) {
         ))}
       </ul>
       {devices.length === 0 && <p className="p-4 text-sm text-pudar">Belum ada laptop yang memasang agent.</p>}
+    </div>
+  );
+}
+
+// Log lihat layar: siapa minta, siapa menyetujui, kapan mulai dan selesai. Isi layarnya tidak pernah disimpan.
+function LogLayar({ slug }: { slug: string }) {
+  const [list, setList] = useState<ScreenSession[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<{ data: ScreenSession[] }>(`/api/classrooms/${slug}/screen-sessions`).then(
+      (r) => setList(r.data),
+      (e: unknown) => setError(errorMessage(e)),
+    );
+  }, [slug]);
+
+  if (!list) return <p className="label-mono p-4">{error ?? "Memuat log…"}</p>;
+
+  return (
+    <div>
+      <ul>
+        {list.map((s) => (
+          <li key={s.id} className="border-b border-tinta/30 px-3 py-2.5">
+            <p className="text-sm">
+              {s.help_request_id ? (
+                <>
+                  <b>{s.target.name}</b> membagikan layar ke <b>{s.viewer.name}</b> saat minta bantuan
+                </>
+              ) : (
+                <>
+                  <b>{s.viewer.name}</b> minta layar <b>{s.target.name}</b>
+                </>
+              )}
+            </p>
+            {s.reason && <p className="text-sm">“{s.reason}”</p>}
+            <p className="font-mono text-xs text-pudar">
+              {new Date(s.created_at).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short" })} {formatClock(s.created_at)} WIB ·{" "}
+              {s.approver ? `disetujui ${s.approver.name}` : s.help_request_id ? "atas kemauan sendiri" : "tanpa persetujuan ketua"}
+            </p>
+            <p className="label-mono">
+              {s.started_at ? `Live ${formatClock(s.started_at)}${s.ended_at ? `–${formatClock(s.ended_at)}` : ""} · ` : ""}
+              {keteranganLayar(s)}
+            </p>
+          </li>
+        ))}
+      </ul>
+      {list.length === 0 && <p className="p-4 text-sm text-pudar">Belum pernah ada permintaan lihat layar di kelas ini.</p>}
     </div>
   );
 }

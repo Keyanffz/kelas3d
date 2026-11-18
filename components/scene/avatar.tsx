@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   AnimationMixer,
   Bone,
+  Box3,
+  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -14,6 +16,7 @@ import {
   MeshStandardMaterial,
   Skeleton,
   SkinnedMesh,
+  Vector3,
   type AnimationAction,
   type Group,
   type Object3D,
@@ -25,6 +28,45 @@ import { Gerak, type Badan } from "@/lib/scene/gerak";
 import type { Graf } from "@/lib/scene/graf";
 import type { Klip, Tujuan } from "@/lib/scene/keadaan";
 import { bagianTampil, MATERIAL_WARNA, type Rakitan } from "@/lib/scene/tampilan";
+
+// Headphone mode fokus, sementara dari balok sampai aset aslinya dibuat di Blender: bando di atas rambut
+// dan dua bantalan di samping kepala, dalam koordinat avatar di pose diam.
+function headphone(kepala: Box3, rambut: Box3 | null): { g: BufferGeometry; warna: string }[] {
+  const luar = rambut ? kepala.clone().union(rambut) : kepala;
+  const c = kepala.getCenter(new Vector3());
+  const atas = luar.max.y;
+  const balok = (w: number, h: number, d: number, x: number, y: number, warna: string) => ({
+    g: new BoxGeometry(w, h, d).translate(x, y, c.z).deleteAttribute("uv"),
+    warna,
+  });
+
+  return [
+    balok(luar.max.x - luar.min.x + 0.07, 0.03, 0.05, (luar.min.x + luar.max.x) / 2, atas + 0.015, "#1c1917"),
+    ...[luar.min.x - 0.02, luar.max.x + 0.02].flatMap((x) => [
+      balok(0.03, atas - c.y, 0.04, x, (atas + c.y) / 2, "#1c1917"),
+      balok(0.06, 0.16, 0.14, x, c.y, "#ea580c"),
+    ]),
+  ];
+}
+
+// Topi aksesoris, sementara dari balok: kubah di atas kepala dan rambut, ditambah lidah ke depan (+z)
+// untuk topi pet atau pompom untuk kupluk.
+function topi(id: string, kepala: Box3, rambut: Box3 | null): { g: BufferGeometry; warna: string }[] {
+  const luar = rambut ? kepala.clone().union(rambut) : kepala;
+  const c = luar.getCenter(new Vector3());
+  const w = luar.max.x - luar.min.x + 0.03;
+  const d = luar.max.z - luar.min.z + 0.03;
+  const atas = luar.max.y;
+  const balok = (bw: number, bh: number, bd: number, x: number, y: number, z: number, warna: string) => ({
+    g: new BoxGeometry(bw, bh, bd).translate(x, y, z).deleteAttribute("uv"),
+    warna,
+  });
+
+  if (id === "topi_2") {
+    return [balok(w, 0.14, d, c.x, atas - 0.02, c.z, "#15803d"), balok(0.06, 0.06, 0.06, c.x, atas + 0.08, c.z, "#f4efe6")];
+  }
+  return [balok(w, 0.09, d, c.x, atas - 0.005, c.z, "#1d4ed8"), balok(w * 0.8, 0.02, 0.12, c.x, atas - 0.04, luar.max.z + 0.05, "#1d4ed8")];
+}
 
 // Satu file avatar dipakai banyak user. Bagian badan menempel kaku ke node tulang tanpa skin.
 // Bagian yang tampil digabung jadi satu SkinnedMesh berwarna per vertex, tiap bagian ikut
@@ -47,24 +89,18 @@ export function buatAvatar(gltf: GLTF, r: Rakitan): Object3D {
   });
   root.traverseVisible((o) => tampil.add(o));
 
+  // Diukur selagi kepala dan rambut masih menempel di tulangnya.
+  const kotak = (name: string) => {
+    const o = root.getObjectByName(name);
+    return o ? new Box3().setFromObject(o) : null;
+  };
+  const kepala = r.fokus || r.topi ? kotak(`${r.tipe}_kepala`) : null;
+  const rambut = kepala && kotak(r.rambut);
+
   const warna = new Color();
   const bagian: BufferGeometry[] = [];
-  for (const m of semua) {
-    let induk = m.parent;
-    while (induk && !(induk instanceof Bone)) induk = induk.parent;
-    m.removeFromParent();
-    if (!tampil.has(m)) continue;
-    const b = induk ? tulang.indexOf(induk) : 0;
-    const mat = m.material as MeshStandardMaterial;
-    const name = mat.name as (typeof MATERIAL_WARNA)[number];
-    if (MATERIAL_WARNA.includes(name)) warna.set(r.warna[name]);
-    else warna.copy(mat.color);
-
-    const g = new BufferGeometry()
-      .setIndex(m.geometry.index)
-      .setAttribute("position", m.geometry.attributes.position.clone())
-      .setAttribute("normal", m.geometry.attributes.normal.clone())
-      .applyMatrix4(m.matrixWorld);
+  // Tiap potongan ikut satu tulang dengan bobot penuh dan satu warna.
+  const tempel = (g: BufferGeometry, b: number) => {
     const n = g.attributes.position.count;
     const color = new Float32Array(n * 3);
     const skinIndex = new Uint16Array(n * 4);
@@ -80,6 +116,35 @@ export function buatAvatar(gltf: GLTF, r: Rakitan): Object3D {
         .setAttribute("skinIndex", new BufferAttribute(skinIndex, 4))
         .setAttribute("skinWeight", new BufferAttribute(skinWeight, 4)),
     );
+  };
+
+  for (const m of semua) {
+    let induk = m.parent;
+    while (induk && !(induk instanceof Bone)) induk = induk.parent;
+    m.removeFromParent();
+    if (!tampil.has(m)) continue;
+    const b = induk ? tulang.indexOf(induk) : 0;
+    const mat = m.material as MeshStandardMaterial;
+    const name = mat.name as (typeof MATERIAL_WARNA)[number];
+    if (MATERIAL_WARNA.includes(name)) warna.set(r.warna[name]);
+    else warna.copy(mat.color);
+
+    tempel(
+      new BufferGeometry()
+        .setIndex(m.geometry.index)
+        .setAttribute("position", m.geometry.attributes.position.clone())
+        .setAttribute("normal", m.geometry.attributes.normal.clone())
+        .applyMatrix4(m.matrixWorld),
+      b,
+    );
+  }
+
+  if (kepala) {
+    const b = Math.max(0, tulang.findIndex((t) => t.name === "kepala"));
+    for (const h of [...(r.fokus ? headphone(kepala, rambut) : []), ...(r.topi ? topi(r.topi, kepala, rambut) : [])]) {
+      warna.set(h.warna);
+      tempel(h.g, b);
+    }
   }
 
   const bahan = (semua[0].material as MeshStandardMaterial).clone();

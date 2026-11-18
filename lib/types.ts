@@ -12,6 +12,8 @@ export interface Avatar {
   tipe_badan: "laki" | "perempuan";
   rambut: "rambut_1" | "rambut_2" | "rambut_3" | "rambut_4" | "rambut_5";
   warna: { kulit: string; rambut: string; celana: string };
+  // Aksesoris yang dipakai, diatur lewat Progresku; id dari katalog API (topi_1, meja_1, ...).
+  aksesoris?: { topi: string | null; meja: string | null };
 }
 
 export interface MyClassroom {
@@ -49,14 +51,25 @@ export interface Presence {
   activity: Activity | null;
   app_label: string | null;
   state_since: string | null;
+  // Mode fokus: avatar memakai headphone, pengumuman untuknya ditahan.
+  focus: boolean;
   last_heartbeat_at: string | null;
-  help_request: { id: number; note: string | null; status: HelpStatus } | null;
+  help_request: HelpRequestOpen | null;
   // Field di bawah ini cuma dikirim untuk koordinator dan ketua kelas.
   project?: string | null;
   file_name?: string | null;
   language?: string | null;
   // Aplikasi lain yang jendelanya terbuka, terakhir dipakai dulu. Null kalau agent belum bisa membacanya.
   open_apps?: OpenApp[] | null;
+}
+
+export interface HelpRequestOpen {
+  id: number;
+  note: string | null;
+  status: HelpStatus;
+  handled_by: Orang | null;
+  // Waktu angkat tangan, urutan antrean.
+  created_at: string;
 }
 
 export interface OpenApp {
@@ -82,6 +95,7 @@ export interface PresenceChangedEvent {
   activity: Activity | null;
   app_label: string | null;
   state_since: string;
+  focus: boolean;
 }
 
 export interface HelpRequestedEvent {
@@ -90,6 +104,7 @@ export interface HelpRequestedEvent {
   note: string | null;
   status: HelpStatus;
   handled_by: { id: number; name: string } | null;
+  created_at: string;
 }
 
 export interface ValidationErrorBody {
@@ -98,7 +113,7 @@ export interface ValidationErrorBody {
 }
 
 export type NudgeStatus = "terkirim" | "dibaca" | "selesai";
-type Orang = { id: number; name: string };
+export type Orang = { id: number; name: string };
 
 export interface AnnouncementSentEvent {
   id: number;
@@ -179,4 +194,27 @@ export interface ActivityRecap {
   per_day: { date: string; di_kelas: number; istirahat: number }[];
   per_project: { project: string; seconds: number }[];
   per_language: { language: string; seconds: number }[];
+}
+
+export type ScreenStatus = "menunggu_ketua" | "menunggu_mahasiswa" | "menyambung" | "live" | "ditolak" | "kedaluwarsa" | "selesai";
+export type ScreenCloseReason = "ditolak_ketua" | "ditolak_mahasiswa" | "izin_browser" | "dihentikan" | "terputus" | "batas_waktu";
+
+// Satu permintaan lihat layar, dari REST maupun event ScreenSessionChanged.
+export interface ScreenSession {
+  id: number;
+  classroom: string;
+  viewer: Orang;
+  target: Orang;
+  // Terisi kalau mahasiswa sendiri yang membagikan layar ke yang menangani bantuannya.
+  help_request_id: number | null;
+  // Ketua kelas yang menyetujui; null kalau belum, atau kalau yang dituju ketua kelas sendiri.
+  approver: Orang | null;
+  reason: string | null;
+  status: ScreenStatus;
+  close_reason: ScreenCloseReason | null;
+  closed_by: Orang | null;
+  expires_at: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
 }

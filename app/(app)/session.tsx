@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, use, useEffect, useState, type ReactNode } from "react";
+import { KartuLayar } from "@/components/layar/kartu-layar";
+import { LayarProvider } from "@/components/layar/penyedia";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { disconnectEcho, useEchoStatus } from "@/lib/echo";
 import type { Me } from "@/lib/types";
@@ -41,10 +43,13 @@ export function Session({ children }: { children: ReactNode }) {
     <MeContext value={me}>
       <SetMeContext value={setMe}>
         {/* Tinggi layar penuh: halaman 3D mengisi sisa tinggi, halaman lain bergulir di dalamnya. */}
-        <div className="flex h-dvh flex-col">
-          <Header me={me} />
-          <div className="min-h-0 flex-1 overflow-auto">{children}</div>
-        </div>
+        <LayarProvider me={me}>
+          <div className="flex h-dvh flex-col">
+            <Header me={me} />
+            <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+          </div>
+          <KartuLayar meId={me.id} />
+        </LayarProvider>
       </SetMeContext>
     </MeContext>
   );
@@ -82,6 +87,12 @@ function Header({ me }: { me: Me }) {
         <nav className="flex gap-1 font-mono text-xs uppercase tracking-wider">
           <Link href="/gedung" className="px-2 py-1 hover:bg-kertas-tua">Gedung</Link>
           <Link href="/kelola" className="px-2 py-1 hover:bg-kertas-tua">Kelola</Link>
+        </nav>
+      )}
+      {me.role === "peserta" && (
+        <nav className="flex gap-1 font-mono text-xs uppercase tracking-wider">
+          {me.classrooms[0] && <Link href={`/kelas/${me.classrooms[0].slug}`} className="px-2 py-1 hover:bg-kertas-tua">Kelas</Link>}
+          <Link href="/progres" className="px-2 py-1 hover:bg-kertas-tua">Progresku</Link>
         </nav>
       )}
       <div className="ml-auto flex items-center gap-3">

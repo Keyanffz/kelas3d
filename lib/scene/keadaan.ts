@@ -20,6 +20,13 @@ export type Tujuan =
   | { kind: "duduk"; point: string; clip: Klip }
   | { kind: "berdiri"; point: string; clip: Klip; via?: string[] };
 
+// Koordinator mendatangi meja ketua kelas sambil bicara: teguran, atau permintaan lihat layar.
+export interface Adegan {
+  from: { id: number };
+  classroom: string;
+  message: string;
+}
+
 export const sameTujuan = (a: Tujuan, b: Tujuan) => JSON.stringify(a) === JSON.stringify(b);
 
 const urutTitik = (names: string[], prefix: string) =>

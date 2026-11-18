@@ -14,6 +14,8 @@ export interface Dunia {
   pintu: Pintu[];
   // Material layar per kursi, kunci `<kelas>_<kode>` seperti "developer_a1".
   layar: Map<string, MeshStandardMaterial>;
+  // Kotak laptop per kursi, buat menaruh item meja di sebelahnya.
+  laptop: Map<string, Box3>;
   // Dinding, kusen, dan daun pintu: dicek dengan raycast karena punya lubang pintu.
   tembok: Object3D[];
   // Furnitur sebagai kotak di bidang lantai.
@@ -45,6 +47,7 @@ export function siapkan(root: Object3D): Dunia {
   const lantai = new Map<string, Box3>();
   const dinding: Dunia["dinding"] = [];
   const layar = new Map<string, MeshStandardMaterial>();
+  const laptop = new Map<string, Box3>();
   const tembok: Object3D[] = [];
   const kotak: Box3[] = [];
   const pintuObj: Object3D[] = [];
@@ -73,6 +76,7 @@ export function siapkan(root: Object3D): Dunia {
     else if (/_pintu$/.test(n)) pintuObj.push(o);
     else if (/_lantai$/.test(n)) lantai.set(n.replace(/_lantai$/, ""), new Box3().setFromObject(o));
     else if (/^laptop_/.test(n)) {
+      laptop.set(n.slice("laptop_".length), new Box3().setFromObject(o));
       o.traverse((m) => {
         if (m instanceof Mesh && m.material instanceof MeshStandardMaterial && m.material.name === "layar_laptop") {
           // Material layar dipakai bersama semua laptop; tiap laptop dapat salinannya sendiri.
@@ -136,6 +140,7 @@ export function siapkan(root: Object3D): Dunia {
     dinding,
     pintu,
     layar,
+    laptop,
     tembok,
     kotak,
   };

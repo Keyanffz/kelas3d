@@ -16,12 +16,16 @@ export interface Rakitan {
   // Patch dada kiri: kelas_developer atau kelas_data_science; koordinator tanpa patch.
   patch: string | null;
   ketua: boolean;
+  // Mode fokus: headphone di kepala.
+  fokus: boolean;
+  // Aksesoris slot topi (topi_1, topi_2), sementara balok sampai asetnya ada di Blender.
+  topi: string | null;
   warna: { kulit: string; rambut: string; celana: string; tali_kokard: string };
 }
 
 export function rakit(
   avatar: Avatar | null,
-  opsi: { slug: string | null; ketua: boolean; koordinator: boolean },
+  opsi: { slug: string | null; ketua: boolean; koordinator: boolean; fokus?: boolean },
 ): Rakitan {
   const a = avatar ?? AVATAR_BAWAAN;
   return {
@@ -30,6 +34,8 @@ export function rakit(
     hijab: a.rambut === "rambut_5",
     patch: opsi.slug && !opsi.koordinator ? `kelas_${roomKey(opsi.slug)}` : null,
     ketua: opsi.ketua,
+    fokus: opsi.fokus ?? false,
+    topi: a.aksesoris?.topi ?? null,
     warna: { ...a.warna, tali_kokard: opsi.koordinator ? WARNA_KOKARD.koordinator : WARNA_KOKARD.peserta },
   };
 }

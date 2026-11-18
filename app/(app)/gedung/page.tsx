@@ -3,14 +3,17 @@
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AntreanBantuan } from "@/components/antrean-bantuan";
 import { DaftarPresence } from "@/components/daftar-presence";
 import { DaftarRingkas } from "@/components/daftar-ringkas";
 import { DetailPresence } from "@/components/detail-presence";
 import { FormPengumuman } from "@/components/form-pengumuman";
+import { useLayar } from "@/components/layar/penyedia";
 import { ToggleMode } from "@/components/toggle-mode";
 import { DaftarPengumuman } from "@/components/pengumuman";
 import { api, errorMessage } from "@/lib/api";
-import type { Classroom } from "@/lib/types";
+import { adeganLayar } from "@/lib/layar";
+import type { Classroom, PresenceList } from "@/lib/types";
 import { useRooms } from "@/lib/use-rooms";
 import { useMe } from "../session";
 
@@ -80,6 +83,14 @@ export default function GedungPage() {
     setTab(slug);
   }, []);
 
+  // Koordinator pindah ke kelas itu dulu, supaya avatarnya bisa berjalan ke meja ketua kelas.
+  const { sesi, minta } = useLayar();
+  const mintaLayar = async (alasan: string | null) => {
+    if (!pilih) return;
+    if (kunjungan !== pilih.slug) await kunjungi(pilih.slug);
+    await minta(pilih.slug, pilih.id, alasan);
+  };
+
   const kelas = useMemo(() => slugs.filter((s) => rooms[s]).map((s) => ({ slug: s, room: rooms[s] })), [slugs, rooms]);
 
   if (!koordinator) return null;
@@ -124,7 +135,7 @@ export default function GedungPage() {
 
       {mode === "daftar" ? (
         <div className="min-h-0 flex-1 overflow-auto">
-          <Tabs classrooms={classrooms} active={active} onTab={setTab} />
+          <Tabs classrooms={classrooms} rooms={rooms} active={active} onTab={setTab} />
           {active && rooms[active] ? (
             <DaftarPresence room={rooms[active]} staff onSelect={(p) => onSelect(p.user.id, active)} />
           ) : (
@@ -132,7 +143,7 @@ export default function GedungPage() {
           )}
           {dipilih && pilih && (
             <div className="fixed bottom-4 right-4 z-30 w-[22rem] max-w-[calc(100vw-2rem)] border-2 border-tinta bg-kertas shadow-[4px_4px_0_#1c1917]">
-              <DetailPresence p={dipilih} slug={pilih.slug} bisaTegur berkunjung={kunjungan === pilih.slug} onClose={() => setPilih(null)} />
+              <DetailPresence p={dipilih} slug={pilih.slug} bisaTegur berkunjung={kunjungan === pilih.slug} onLayar={mintaLayar} onClose={() => setPilih(null)} />
             </div>
           )}
         </div>
@@ -151,17 +162,20 @@ export default function GedungPage() {
               jelajah={jelajah}
               onJelajah={setJelajah}
               onRuang={onRuang}
-              adegan={adegan}
+              adegan={adegan ?? adeganLayar(sesi)}
             />
             <DaftarPengumuman list={pengumuman} onTutup={tutupPengumuman} />
           </div>
           <aside className="flex max-h-[45vh] flex-col overflow-auto border-t-2 border-tinta bg-kertas lg:max-h-none lg:w-[22rem] lg:border-l-2 lg:border-t-0">
             {dipilih && pilih && (
-              <DetailPresence p={dipilih} slug={pilih.slug} bisaTegur berkunjung={kunjungan === pilih.slug} onClose={() => setPilih(null)} />
+              <DetailPresence p={dipilih} slug={pilih.slug} bisaTegur berkunjung={kunjungan === pilih.slug} onLayar={mintaLayar} onClose={() => setPilih(null)} />
             )}
-            <Tabs classrooms={classrooms} active={active} onTab={setTab} />
+            <Tabs classrooms={classrooms} rooms={rooms} active={active} onTab={setTab} />
             {active && rooms[active] ? (
-              <DaftarRingkas room={rooms[active]} selected={pilih?.id ?? null} onSelect={(p) => onSelect(p.user.id, active)} />
+              <>
+                <AntreanBantuan room={rooms[active]} selected={pilih?.id ?? null} onSelect={(p) => onSelect(p.user.id, active)} />
+                <DaftarRingkas room={rooms[active]} selected={pilih?.id ?? null} onSelect={(p) => onSelect(p.user.id, active)} />
+              </>
             ) : (
               <p className="label-mono p-4">Memuat presence…</p>
             )}
@@ -172,21 +186,35 @@ export default function GedungPage() {
   );
 }
 
-function Tabs({ classrooms, active, onTab }: { classrooms: Classroom[]; active: string | null; onTab: (slug: string) => void }) {
+function Tabs({
+  classrooms,
+  rooms,
+  active,
+  onTab,
+}: {
+  classrooms: Classroom[];
+  rooms: Record<string, PresenceList>;
+  active: string | null;
+  onTab: (slug: string) => void;
+}) {
   return (
     <nav className="flex border-b-2 border-tinta">
-      {classrooms.map((c) => (
-        <button
-          key={c.slug}
-          type="button"
-          onClick={() => onTab(c.slug)}
-          className={`flex-1 border-r-2 border-tinta px-3 py-2 font-mono text-xs uppercase tracking-wider last:border-r-0 ${
-            c.slug === active ? "bg-tinta text-kertas" : "hover:bg-kertas-tua"
-          }`}
-        >
-          {c.name}
-        </button>
-      ))}
+      {classrooms.map((c) => {
+        const tangan = rooms[c.slug]?.data.filter((p) => p.help_request?.status === "menunggu").length ?? 0;
+        return (
+          <button
+            key={c.slug}
+            type="button"
+            onClick={() => onTab(c.slug)}
+            className={`flex-1 border-r-2 border-tinta px-3 py-2 font-mono text-xs uppercase tracking-wider last:border-r-0 ${
+              c.slug === active ? "bg-tinta text-kertas" : "hover:bg-kertas-tua"
+            }`}
+          >
+            {c.name}
+            {tangan > 0 && <span className="ml-1 bg-oranye px-1 text-kertas">✋{tangan}</span>}
+          </button>
+        );
+      })}
     </nav>
   );
 }

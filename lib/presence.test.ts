@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyAnnouncements, applyHelpRequested, applyPresenceChanged, countByState, formatClock, formatDuration } from "./presence";
-import type { Presence } from "./types";
+import { antreanBantuan, applyAnnouncements, applyHelpRequested, applyPresenceChanged, countByState, formatClock, formatDuration } from "./presence";
+import type { HelpRequestOpen, Presence } from "./types";
 
 function presence(id: number, extra: Partial<Presence> = {}): Presence {
   return {
@@ -13,6 +13,7 @@ function presence(id: number, extra: Partial<Presence> = {}): Presence {
     activity: "ngoding",
     app_label: "VS Code",
     state_since: "2026-11-09T02:00:00.000000Z",
+    focus: false,
     last_heartbeat_at: "2026-11-09T02:15:20.000000Z",
     help_request: null,
     ...extra,
@@ -29,11 +30,14 @@ describe("applyPresenceChanged", () => {
       activity: "browsing",
       app_label: "Firefox",
       state_since: "2026-11-09T09:05:00+07:00",
+      focus: true,
     });
 
     expect(next[0]).toBe(list[0]);
     expect(next[1]).toMatchObject({ state: "istirahat", state_reason: "idle", activity: "browsing", app_label: "Firefox" });
     expect(next[1].state_since).toBe("2026-11-09T09:05:00+07:00");
+    expect(next[1].focus).toBe(true);
+    expect(next[0].focus).toBe(false);
     expect(list[1].state).toBe("di_kelas");
   });
 
@@ -46,6 +50,7 @@ describe("applyPresenceChanged", () => {
       activity: null,
       app_label: null,
       state_since: "2026-11-09T16:00:00+07:00",
+      focus: false,
     });
 
     expect(p).toMatchObject({ state: "keluar", project: null, file_name: null, language: null });
@@ -59,6 +64,7 @@ describe("applyPresenceChanged", () => {
       activity: null,
       app_label: null,
       state_since: "2026-11-09T16:00:00+07:00",
+      focus: false,
     });
 
     expect("project" in p).toBe(false);
@@ -73,6 +79,7 @@ describe("applyPresenceChanged", () => {
       activity: null,
       app_label: null,
       state_since: "2026-11-09T16:00:00+07:00",
+      focus: false,
     });
 
     expect(next).toEqual(list);
@@ -80,20 +87,36 @@ describe("applyPresenceChanged", () => {
 });
 
 describe("applyHelpRequested", () => {
-  const event = { id: 5, user: { id: 1, name: "Peserta 1" }, note: "Error migrate", handled_by: null };
+  const event = { id: 5, user: { id: 1, name: "Peserta 1" }, note: "Error migrate", handled_by: null, created_at: "2026-11-12T09:00:00+07:00" };
 
   it("mengisi permintaan bantuan yang masih terbuka", () => {
     const [p] = applyHelpRequested([presence(1)], { ...event, status: "menunggu" });
-    expect(p.help_request).toEqual({ id: 5, note: "Error migrate", status: "menunggu" });
+    expect(p.help_request).toEqual({ id: 5, note: "Error migrate", status: "menunggu", handled_by: null, created_at: event.created_at });
 
     const [q] = applyHelpRequested([p], { ...event, status: "ditangani", handled_by: { id: 3, name: "Sinta" } });
     expect(q.help_request?.status).toBe("ditangani");
+    expect(q.help_request?.handled_by?.name).toBe("Sinta");
   });
 
   it("menghapus permintaan yang selesai", () => {
-    const list = [presence(1, { help_request: { id: 5, note: null, status: "ditangani" } })];
+    const list = [presence(1, { help_request: { id: 5, note: null, status: "ditangani", handled_by: null, created_at: event.created_at } })];
     const [p] = applyHelpRequested(list, { ...event, status: "selesai" });
     expect(p.help_request).toBeNull();
+  });
+});
+
+describe("antreanBantuan", () => {
+  const help = (status: HelpRequestOpen["status"], created_at: string): HelpRequestOpen => ({ id: 1, note: null, status, handled_by: null, created_at });
+
+  it("yang belum ditangani dulu, lalu urut waktu angkat tangan", () => {
+    const list = [
+      presence(1, { help_request: help("ditangani", "2026-11-12T01:00:00.000000Z") }),
+      presence(2),
+      // Dari event: +07:00, jadi 02:05 UTC.
+      presence(3, { help_request: help("menunggu", "2026-11-12T09:05:00+07:00") }),
+      presence(4, { help_request: help("menunggu", "2026-11-12T02:01:00.000000Z") }),
+    ];
+    expect(antreanBantuan(list).map((p) => p.user.id)).toEqual([4, 3, 1]);
   });
 });
 

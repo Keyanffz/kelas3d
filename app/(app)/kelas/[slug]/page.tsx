@@ -4,11 +4,16 @@ import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AngkatTangan } from "@/components/angkat-tangan";
+import { AntreanBantuan } from "@/components/antrean-bantuan";
 import { DaftarPresence } from "@/components/daftar-presence";
 import { DetailPresence } from "@/components/detail-presence";
+import { useLayar } from "@/components/layar/penyedia";
+import { ModeFokus } from "@/components/mode-fokus";
 import { PanelKetua } from "@/components/panel-ketua";
 import { DaftarPengumuman } from "@/components/pengumuman";
 import { ToggleMode } from "@/components/toggle-mode";
+import { adeganLayar } from "@/lib/layar";
+import { antreanBantuan } from "@/lib/presence";
 import { isStaff } from "@/lib/role";
 import { useRooms } from "@/lib/use-rooms";
 import { useMe } from "../../session";
@@ -27,6 +32,7 @@ export default function KelasPage() {
   const slugs = useMemo(() => [slug], [slug]);
   const { rooms, error, koordinator, muatUlang, pengumuman, tutupPengumuman, teguran, setTeguran, adegan, selesaiAdegan } = useRooms(slugs, staff);
   const room = rooms[slug];
+  const { sesi } = useLayar();
   const [mode, setMode] = useState<"3d" | "daftar">("3d");
   const [panel, setPanel] = useState(ketua);
   const [pilih, setPilih] = useState<number | null>(null);
@@ -40,7 +46,10 @@ export default function KelasPage() {
   const kelasScene = room ? [{ slug, room }] : [];
   const saya = room?.data.find((p) => p.user.id === me.id);
   const dipilih = pilih !== null ? room?.data.find((p) => p.user.id === pilih) : undefined;
+  // Selama fokus, pengumuman ditahan; begitu selesai, yang belum ditutup tampil lagi.
+  const banner = saya?.focus ? [] : pengumuman;
   const baruTeguran = teguran.filter((n) => n.status === "terkirim").length;
+  const adaAntrean = staff && room ? antreanBantuan(room.data).length > 0 : false;
 
   return (
     <main className="flex h-full flex-col">
@@ -49,6 +58,7 @@ export default function KelasPage() {
         {kelas && <span className="label-mono">{kelas.seat_code ? `Kursimu ${kelas.seat_code.toUpperCase()}` : "Belum punya kursi"}</span>}
         <ToggleMode mode={mode} onMode={setMode} />
         <div className="ml-auto flex items-center gap-2">
+          {kelas && <ModeFokus saya={saya} ditahan={pengumuman.length} onBerubah={() => muatUlang(slug)} />}
           {kelas && <AngkatTangan slug={slug} saya={saya} />}
           {ketua && (
             <button type="button" className={`tombol ${panel ? "bg-tinta text-kertas" : ""}`} onClick={() => setPanel((v) => !v)}>
@@ -76,18 +86,19 @@ export default function KelasPage() {
                 staff={staff}
                 selected={pilih}
                 onSelect={setPilih}
-                adegan={adegan}
+                adegan={adegan ?? adeganLayar(sesi, slug)}
               />
-              <DaftarPengumuman list={pengumuman} onTutup={tutupPengumuman} />
+              <DaftarPengumuman list={banner} onTutup={tutupPengumuman} />
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-auto">
-              <DaftarPengumuman list={pengumuman} onTutup={tutupPengumuman} />
+              <DaftarPengumuman list={banner} onTutup={tutupPengumuman} />
               <DaftarPresence room={room} staff={staff} onSelect={staff ? (p) => setPilih(p.user.id) : undefined} />
             </div>
           )}
-          {(dipilih || panel) && (
+          {(dipilih || panel || adaAntrean) && (
             <aside className="max-h-[50vh] overflow-auto border-t-2 border-tinta bg-kertas lg:max-h-none lg:w-[24rem] lg:border-l-2 lg:border-t-0">
+              {staff && <AntreanBantuan room={room} selected={pilih} onSelect={(p) => setPilih(p.user.id)} />}
               {dipilih && (
                 <DetailPresence p={dipilih} slug={slug} bisaTegur={me.role === "koordinator"} berkunjung={false} onClose={() => setPilih(null)} />
               )}

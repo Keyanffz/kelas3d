@@ -7,12 +7,12 @@ import { Vector3, type Box3 } from "three";
 import type { OrbitControls as OrbitImpl, PointerLockControls } from "three-stdlib";
 import { subAktivitas } from "@/lib/presence";
 import { roomKey } from "@/lib/scene/graf";
-import { tujuanKelas, tujuanKunjungan, warnaLayar, type Tujuan } from "@/lib/scene/keadaan";
+import { tujuanKelas, tujuanKunjungan, warnaLayar, type Adegan, type Tujuan } from "@/lib/scene/keadaan";
 import { rakit } from "@/lib/scene/tampilan";
 import type { Coordinator, Me, PresenceList } from "@/lib/types";
-import type { Teguran } from "@/lib/use-rooms";
 import { Avatar, type Terdaftar } from "./avatar";
 import { siapkan, type Dunia } from "./dunia";
+import { ItemMeja } from "./item-meja";
 import { Jelajah } from "./jelajah";
 
 const MODEL = { gedung: "/models/gedung.glb", laki: "/models/avatar-laki.glb", perempuan: "/models/avatar-perempuan.glb" };
@@ -33,7 +33,7 @@ export interface SceneProps {
   jelajah?: boolean;
   onJelajah?: (on: boolean) => void;
   onRuang?: (slug: string | null) => void;
-  adegan?: Teguran | null;
+  adegan?: Adegan | null;
 }
 
 interface LabelData {
@@ -42,6 +42,7 @@ interface LabelData {
   sub: string | null;
   tag: "ketua" | "koordinator" | null;
   tangan: boolean;
+  fokus: boolean;
   saya: boolean;
   balon: string | null;
 }
@@ -59,6 +60,7 @@ function daftarLabel({ me, kelas, koordinator, semua, adegan }: SceneProps): Lab
         sub: p.state === "keluar" ? null : subAktivitas(p),
         tag: p.role === "admin" ? "ketua" : null,
         tangan: p.help_request?.status === "menunggu",
+        fokus: p.focus,
         saya: p.user.id === me.id,
         balon: null,
       });
@@ -73,6 +75,7 @@ function daftarLabel({ me, kelas, koordinator, semua, adegan }: SceneProps): Lab
       sub: null,
       tag: "koordinator",
       tangan: false,
+      fokus: false,
       saya: c.id === me.id,
       balon: adegan?.from.id === c.id ? adegan.message : null,
     });
@@ -176,6 +179,7 @@ function Label({ l }: { l: LabelData }) {
       <div className={`whitespace-nowrap border-2 bg-kertas px-1.5 py-0.5 text-center leading-tight ${l.saya ? "border-oranye" : "border-tinta"}`}>
         <p className="text-[11px] font-bold">
           {l.tangan && <span className="mr-1 text-oranye">✋</span>}
+          {l.fokus && <span className="mr-1" title="Sedang fokus">🎧</span>}
           {l.nama}
         </p>
         {l.tag === "ketua" && <p className="font-mono text-[9px] uppercase tracking-wider text-marun">Ketua Kelas</p>}
@@ -233,7 +237,7 @@ function Isi(
         out.push({
           kunci: `p:${p.user.id}`,
           tipe: p.user.avatar?.tipe_badan ?? "laki",
-          rakitan: rakit(p.user.avatar, { slug: k.slug, ketua: p.role === "admin", koordinator: false }),
+          rakitan: rakit(p.user.avatar, { slug: k.slug, ketua: p.role === "admin", koordinator: false, fokus: p.focus }),
           tujuan: t,
           pick: staff ? () => onSelect(p.user.id, k.slug) : undefined,
         });
@@ -273,6 +277,16 @@ function Isi(
     return m;
   }, [kelas]);
 
+  const itemMeja = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const k of kelas)
+      for (const p of k.room.data) {
+        const id = p.user.avatar?.aksesoris?.meja;
+        if (p.seat_code && id) m.set(`${roomKey(k.slug)}_${p.seat_code}`, id);
+      }
+    return m;
+  }, [kelas]);
+
   const tampil = semua ? null : utama ? roomKey(utama) : null;
   const box = (tampil && dunia.lantai.get(tampil)) || dunia.bounds;
   const slugDari = (room: string | null) => kelas.find((k) => roomKey(k.slug) === room)?.slug ?? null;
@@ -280,6 +294,7 @@ function Isi(
   return (
     <>
       <Gedung dunia={dunia} tampil={tampil} jelajah={!!jelajah} layar={layar} avatars={avatars} />
+      <ItemMeja dunia={dunia} item={itemMeja} tampil={tampil} />
       <PosisiLabel avatars={avatars} labelEl={props.labelEl} jelajah={!!jelajah} />
       {jelajah ? (
         <Jelajah

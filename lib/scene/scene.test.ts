@@ -39,6 +39,7 @@ function presence(id: number, extra: Partial<Presence>): Presence {
     activity: "ngoding",
     app_label: null,
     state_since: null,
+    focus: false,
     last_heartbeat_at: null,
     help_request: null,
     ...extra,
@@ -99,7 +100,7 @@ describe("tujuan per keadaan", () => {
       [
         presence(1, {}),
         presence(2, { state: "istirahat", state_reason: "idle" }),
-        presence(3, { help_request: { id: 1, note: null, status: "menunggu" } }),
+        presence(3, { help_request: { id: 1, note: null, status: "menunggu", handled_by: null, created_at: "2026-11-09T02:10:00.000000Z" } }),
         presence(4, { state: "keluar" }),
         presence(5, { seat_code: null }),
       ],
@@ -163,7 +164,8 @@ describe("rakitan avatar", () => {
 
   it("avatar kosong memakai tampilan bawaan", () => {
     const r = rakit(null, { slug: "developer", ketua: false, koordinator: false });
-    expect(r).toMatchObject({ tipe: "laki", rambut: "rambut_1", patch: "kelas_developer" });
+    expect(r).toMatchObject({ tipe: "laki", rambut: "rambut_1", patch: "kelas_developer", fokus: false });
+    expect(rakit(null, { slug: "developer", ketua: false, koordinator: false, fokus: true }).fokus).toBe(true);
   });
 });
 

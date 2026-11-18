@@ -95,3 +95,70 @@ it.each(["laki", "perempuan"] as const)("avatar %s jadi satu mesh yang bergerak 
   expect(i).toBe(kulit.geometry.attributes.position.count);
   expect(selisih).toBeLessThan(1e-4);
 });
+
+it.each(["laki", "perempuan"] as const)("avatar %s yang fokus memakai headphone di tulang kepala, di luar kepala dan rambutnya", async (tipe) => {
+  const gltf = await muat(`avatar-${tipe}`);
+  const avatar = { tipe_badan: tipe, rambut: "rambut_3", warna: { kulit: "#c68642", rambut: "#1e3a8a", celana: "#1f2937" } } as const;
+  const opsi = { slug: "developer", ketua: false, koordinator: false };
+  const biasa = semuaMesh(buatAvatar(gltf, rakit(avatar, opsi)))[0] as SkinnedMesh;
+  const fokus = semuaMesh(buatAvatar(gltf, rakit(avatar, { ...opsi, fokus: true })))[0] as SkinnedMesh;
+
+  const awal = biasa.geometry.attributes.position.count;
+  const pos = fokus.geometry.attributes.position;
+  // Lima balok: bando, dua tangkai, dua bantalan.
+  expect(pos.count - awal).toBe(5 * 24);
+
+  const kepala = fokus.skeleton.bones.findIndex((b) => b.name === "kepala");
+  biasa.geometry.computeBoundingBox();
+  const badan = biasa.geometry.boundingBox!;
+  const headphone = new Box3();
+  const v = new Vector3();
+  for (let i = awal; i < pos.count; i++) {
+    expect(fokus.geometry.attributes.skinIndex.getX(i)).toBe(kepala);
+    headphone.expandByPoint(v.fromBufferAttribute(pos, i));
+  }
+  // Di atas ubun-ubun dan lebih lebar dari badan di sisi kepala, tapi tidak melayang jauh.
+  expect(headphone.max.y).toBeGreaterThan(badan.max.y);
+  expect(headphone.max.y - badan.max.y).toBeLessThan(0.05);
+  expect(headphone.min.y).toBeGreaterThan(badan.max.y - 0.5);
+  expect(Math.abs(headphone.min.x + headphone.max.x)).toBeLessThan(0.02);
+});
+
+it.each(["topi_1", "topi_2"])("%s menempel di tulang kepala di atas rambut, dan tetap ada bersama headphone", async (id) => {
+  const gltf = await muat("avatar-perempuan");
+  const avatar = { tipe_badan: "perempuan", rambut: "rambut_5", warna: { kulit: "#c68642", rambut: "#1e3a8a", celana: "#1f2937" } } as const;
+  const opsi = { slug: "developer", ketua: false, koordinator: false };
+  const biasa = semuaMesh(buatAvatar(gltf, rakit(avatar, opsi)))[0] as SkinnedMesh;
+  const bertopi = semuaMesh(buatAvatar(gltf, rakit({ ...avatar, aksesoris: { topi: id, meja: null } }, opsi)))[0] as SkinnedMesh;
+  const keduanya = semuaMesh(buatAvatar(gltf, rakit({ ...avatar, aksesoris: { topi: id, meja: null } }, { ...opsi, fokus: true })))[0] as SkinnedMesh;
+
+  const awal = biasa.geometry.attributes.position.count;
+  const pos = bertopi.geometry.attributes.position;
+  expect(pos.count - awal).toBe(2 * 24);
+  expect(keduanya.geometry.attributes.position.count - awal).toBe(7 * 24);
+
+  const kepala = bertopi.skeleton.bones.findIndex((b) => b.name === "kepala");
+  biasa.geometry.computeBoundingBox();
+  const badan = biasa.geometry.boundingBox!;
+  const t = new Box3();
+  const v = new Vector3();
+  for (let i = awal; i < pos.count; i++) {
+    expect(bertopi.geometry.attributes.skinIndex.getX(i)).toBe(kepala);
+    t.expandByPoint(v.fromBufferAttribute(pos, i));
+  }
+  expect(t.max.y).toBeGreaterThan(badan.max.y);
+  expect(t.max.y - badan.max.y).toBeLessThan(0.15);
+  expect(t.min.y).toBeGreaterThan(badan.max.y - 0.15);
+});
+
+it("tiap kursi punya laptop di atas meja buat item meja", async () => {
+  const d = siapkan((await muat("gedung")).scene.clone(true));
+  const kursi = d.names.filter((n) => /^seat_(developer|data_science)_[a-c]\d$/.test(n));
+  expect(kursi).toHaveLength(32);
+  for (const n of kursi) {
+    const laptop = d.laptop.get(n.slice("seat_".length));
+    expect(laptop, n).toBeDefined();
+    expect(laptop!.min.y).toBeGreaterThan(0.7);
+    expect(laptop!.min.y).toBeLessThan(0.8);
+  }
+});

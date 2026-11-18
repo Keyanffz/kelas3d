@@ -28,6 +28,7 @@ Salin `.env.example` ke `.env.local` (tidak di-commit).
 | `NEXT_PUBLIC_REVERB_APP_KEY` | Nilai `REVERB_APP_KEY` di `.env` API |
 | `NEXT_PUBLIC_REVERB_HOST` | Host Reverb, contoh `localhost` |
 | `NEXT_PUBLIC_REVERB_PORT` | Port Reverb, default `8080` |
+| `NEXT_PUBLIC_REVERB_SCHEME` | `http` (default) atau `https`. Cuma `https` yang membuat Echo memakai wss; tidak ada bagian lain yang memaksa TLS |
 
 Variabel `NEXT_PUBLIC_*` ditanam ke kode saat build. Sesudah mengubahnya, jalankan ulang `next dev` atau build ulang untuk `next start`.
 
@@ -70,6 +71,36 @@ cd ../kelas3d-agent && ./sajikan.sh localhost
 ```
 
 Lalu sebagai koordinator: Kelola, tab Anggota & ketua, "Buat perintah install" di nama peserta, tempel perintah macOS/Linux di terminal, dan jalankan `kelas3d buka`. Link dari `kelas3d buka` terbuka di browser bawaan dan sesi peserta menimpa sesi koordinator di browser yang sama, jadi buka koordinator di jendela private atau browser lain. Sesudah selesai: `kelas3d uninstall`, dan revoke laptopnya di panel.
+
+### Uji lihat layar
+
+Butuh `composer dev` di API (Reverb harus hidup) dan akun uji dari `php artisan db:seed --class=AkunUjiSeeder`. Email dan password-nya ada di `kelas3d-api/dokumentasi.md` bagian Akun uji. Tanpa agent, akun uji berstatus keluar dan avatarnya tidak tampil, jadi pilih mahasiswanya dari daftar di panel kanan Gedung (tab Data Science).
+
+Satu laptop, tiga profil browser (sesi web berupa cookie, jadi satu profil cuma bisa satu akun; jendela samaran dihitung satu profil sendiri):
+
+1. Buka `http://localhost:3000/login` di tiga profil, masuk sebagai koordinator, ketua, dan mahasiswa. Di localhost browser mengizinkan berbagi layar tanpa pengaturan tambahan.
+2. Koordinator: Gedung, tab Data Science, klik Mahasiswa Uji, isi alasan, "Minta lihat layar". Avatar koordinator berjalan ke meja ketua, dan kartu status muncul di kiri bawah.
+3. Ketua: kartu di kiri bawah, Setujui.
+4. Mahasiswa: kartu di kiri bawah, Izinkan, lalu pilih layar atau jendela di pemilih browser.
+5. Koordinator melihat layarnya di kartu (ada tombol Perbesar). Mahasiswa melihat penanda merah di atas halaman. Ketiganya bisa menghentikan.
+6. Coba juga: Tolak di ketua atau mahasiswa, tutup pemilih layar, biarkan 60 detik tanpa jawaban, tutup tab mahasiswa saat live (sesi berakhir sekitar 8 detik kemudian), tutup tab ketua lalu minta lagi (ditolak dengan pesan ketua tidak membuka web), dan tab Layar di panel ketua untuk log-nya.
+
+Tiga laptop di jaringan yang sama: ikuti Demo di jaringan kelas di bawah. Alamat `http://<IP>:3000` bukan konteks aman, jadi di laptop mahasiswa Chrome menolak berbagi layar sampai alamat itu didaftarkan:
+
+1. Buka `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
+2. Isi kotaknya dengan `http://<IP>:3000`, pilih Enabled, lalu Relaunch.
+
+Yang wajib cuma laptop mahasiswa (yang membagikan layar); laptop koordinator dan ketua tidak butuh flag. Kalau kartu berhenti di "Menyambungkan" lalu kedaluwarsa, kedua browser tidak menemukan jalur langsung. Coba matikan `chrome://flags/#enable-webrtc-hide-local-ips-with-mdns` di kedua laptop, atau tambahkan server TURN lewat `ICE_SERVERS` di `.env` API.
+
+### Uji antrean bantuan dan share layar sukarela
+
+Sama seperti Uji lihat layar: `composer dev`, akun uji, dan tiga profil browser di localhost. Tombol angkat tangan ada di halaman kelas mahasiswa, dan bisa dipakai walau akun uji berstatus keluar.
+
+1. Mahasiswa: buka halaman kelasnya, "✋ Angkat tangan", isi catatan.
+2. Koordinator (Gedung) dan ketua (halaman kelas): antrean bantuan muncul di panel kanan, tab kelasnya diberi ✋ dan jumlahnya. Klik baris antrean untuk membuka detail, lalu Tangani.
+3. Mahasiswa: tag berubah jadi "Dibantu <nama>", lalu "Bagikan layar" dan pilih layar. Tanpa langkah ketua kelas.
+4. Penanganannya melihat layar di kartu kiri bawah, mahasiswa melihat penanda merah. Kalau yang menangani koordinator, ketua kelas tidak mendapat kartu.
+5. Coba juga: Selesai di detail peserta (share ikut berhenti), tutup web penanganannya lalu Bagikan layar (ditolak dengan pesan), dan tab Layar di panel ketua (tercatat "membagikan layar ke ... saat minta bantuan").
 
 ## Demo di jaringan kelas
 
@@ -119,6 +150,8 @@ Alamat server tertanam di biner dan tersimpan di agent saat login. Kalau IP lapt
 | `lib/use-rooms.ts` | Presence dan pengumuman hari ini untuk beberapa kelas sekaligus: REST lalu event di channel tiap kelas. Staf ikut channel `.staff` untuk teguran |
 | `lib/presence.ts` | Penggabungan event ke daftar, label, dan format waktu (dites) |
 | `lib/role.ts` | Halaman awal per role dan cek staf kelas (dites) |
+| `lib/webrtc.ts` | Satu koneksi WebRTC antara dua browser, tanpa tahu soal Echo atau sesi; signaling dititipkan lewat fungsi kirim dan terima, jadi bisa dipakai ulang untuk share layar jenis lain |
+| `lib/layar.ts` | Logika sesi lihat layar: penggabungan event, peran, keterangan status, sisa waktu, dan adegan ke meja ketua (dites) |
 | `lib/kursi.ts` | Kode kursi per kelas, sama dengan config API dan titik `seat_` di `gedung.glb` (dites) |
 | `lib/scene/graf.ts` | Jalur jalan avatar lewat titik `wp_` dan `door_`, tanpa navmesh (dites) |
 | `lib/scene/gerak.ts` | Rencana langkah dan pemutar gerak satu avatar: jalan, belok, duduk, berdiri (dites) |
@@ -132,7 +165,11 @@ Alamat server tertanam di biner dan tersimpan di agent saat login. Kalau IP lapt
 | `app/(app)/session.tsx` | Pengaman halaman, context user login, header |
 | `components/daftar-presence.tsx` | Mode daftar presence |
 | `components/detail-presence.tsx` | Detail kerjaan satu peserta, tindak lanjut bantuan, dan teguran |
+| `components/antrean-bantuan.tsx` | Antrean angkat tangan untuk koordinator dan ketua kelas: belum ditangani dulu, lalu urut waktu; klik membuka detail peserta |
 | `components/panel-ketua.tsx` | Anggota dan kursi, perintah install agent, laptop, dan teguran |
+| `components/layar/penyedia.tsx` | State lihat layar untuk semua halaman: REST dan event di channel `user.{id}`, plus koneksi WebRTC tiap sesi, termasuk share sukarela dari antrean bantuan (`bagikan`). Dipasang di `Session` |
+| `components/layar/kartu-layar.tsx` | Kartu di kiri bawah untuk koordinator (tahap dan video), ketua (Setujui, Tolak), dan mahasiswa (Izinkan, Tolak), serta penanda "layarmu sedang dilihat" |
+| `components/mode-fokus.tsx` | Tombol mode fokus peserta dan jumlah pengumuman yang ditahan |
 | `components/kelola/` | Tab Kelola koordinator: kelas dan jadwal, aturan aplikasi, rekap |
 
 State memakai React state dan satu context untuk user login; tidak ada library state global. Echo dibuat sekali per tab dan diputus saat logout.
@@ -317,3 +354,131 @@ File diubah:
 - `components/detail-presence.tsx`: baris "Juga terbuka".
 
 Tes: `npx tsc --noEmit`, `npx eslint` untuk file yang berubah, `npx vitest run` (36 tes) lulus. `npm run build` belum dijalankan karena `next start` sedang memakai `.next`; tampilan belum dicek di browser.
+
+### 2026-11-10 · Lihat layar mahasiswa (Fitur A)
+
+Koordinator memilih mahasiswa (klik avatar atau dari daftar), mengisi alasan, lalu permintaannya lewat ketua kelas dan izin mahasiswa sebelum layar tampil lewat WebRTC. Kontraknya ada di `kelas3d-api/dokumentasi.md` bagian Lihat layar.
+
+Cara kerjanya di web:
+
+- `LayarProvider` mendengar channel `user.{id}` dari halaman mana pun. Channel itu juga yang membuat server tahu web seseorang sedang terbuka.
+- Mahasiswa menekan Izinkan, browser membuka pemilih layar (`getDisplayMedia` dipanggil langsung dari klik), baru sesudah itu API diberi tahu. Kedua browser lalu bergabung ke `presence-screen.{id}` dan bertukar whisper `sinyal`. Mahasiswa mengirim tawaran tiap koordinator muncul di channel.
+- Sesi berakhir kalau salah satu pihak menghentikan, tombol "Berhenti berbagi" browser ditekan, koneksi WebRTC gagal, atau ujung satunya hilang dari channel lebih dari 8 detik. Mahasiswa yang memuat ulang halaman di tengah sesi otomatis mengakhirinya, karena stream tidak bisa diambil lagi tanpa klik.
+- Selama menunggu ketua, avatar koordinator berdiri di belakang kursi ketua dengan balon berisi permintaannya (adegan yang sama dengan teguran). Koordinator otomatis berkunjung ke kelas itu dulu. Adegan cuma terlihat koordinator peminta dan ketua kelas.
+
+File baru:
+
+- `lib/webrtc.ts`, `lib/layar.ts`, `lib/layar.test.ts`: lihat Struktur kode.
+- `components/layar/penyedia.tsx`, `components/layar/kartu-layar.tsx`: lihat Struktur kode.
+
+File diubah:
+
+- `lib/types.ts`: `ScreenSession`, `ScreenStatus`, `ScreenCloseReason`; `Orang` diekspor.
+- `lib/echo.ts`: `forceTLS` dari `NEXT_PUBLIC_REVERB_SCHEME` (default `http`), transport `ws` dan `wss`.
+- `lib/scene/keadaan.ts`, `components/scene/scene.tsx`: tipe `Adegan` yang dipakai teguran dan lihat layar.
+- `app/(app)/session.tsx`: memasang `LayarProvider` dan `KartuLayar`.
+- `components/detail-presence.tsx`: form "Lihat layar lewat ketua kelas" untuk koordinator, dan status sesi yang sedang berjalan.
+- `components/panel-ketua.tsx`: tab Layar berisi log lihat layar kelas itu.
+- `app/(app)/gedung/page.tsx`, `app/(app)/kelas/[slug]/page.tsx`: permintaan lihat layar dan adegannya.
+- `.env.example`: `NEXT_PUBLIC_REVERB_SCHEME`.
+- `dokumentasi.md`: variabel env, Uji lihat layar, struktur kode.
+
+Tes: `npx vitest run` (42 tes, 6 baru di `lib/layar.test.ts`), `npx tsc --noEmit`, `npx eslint lib components "app/(app)"`, dan `npm run build` bersih. Belum dicoba di browser: seluruh alur WebRTC (pemilih layar, video, putus koneksi) menunggu Key.
+
+Batasan: koordinator kedua tidak melihat adegan ke meja ketua; sambungan realtime yang putus lebih dari 8 detik mengakhiri sesi; stream belum tampil di monitor 3D (tidak dikerjakan).
+
+### 2026-11-10 · Mode fokus
+
+Tombol "🎧 Fokus" di halaman kelas, di sebelah angkat tangan. Selama fokus, avatar peserta itu memakai headphone dan labelnya diberi 🎧 (terlihat semua yang melihat ruangan), mode daftar menampilkan tag Fokus, dan banner pengumuman di layarnya ditahan dengan keterangan jumlahnya. Begitu fokus selesai, pengumuman yang belum ditutup tampil lagi. Kartu lihat layar dan teguran tidak ikut ditahan.
+
+Headphone-nya sementara dari lima balok (bando, dua tangkai, dua bantalan oranye) yang dibuat di kode dan digabung ke mesh avatar di tulang `kepala`, diukur dari kotak kepala dan rambut yang dipakai supaya tidak tenggelam di rambut atau hijab. Kalau aset aslinya sudah ada di `avatar.blend`, fungsi `headphone` di `components/scene/avatar.tsx` diganti aturan tampil di `bagianTampil`.
+
+Tombolnya cuma aktif kalau peserta sedang di kelas atau istirahat, jadi untuk mencobanya butuh agent yang jalan di jam kelas (akun uji tanpa agent berstatus keluar). Untuk akun uji: buat perintah install untuk Mahasiswa Uji di Kelola, tempel di terminal, lalu masuk sebagai mahasiswa itu.
+
+File baru:
+
+- `components/mode-fokus.tsx`.
+
+File diubah:
+
+- `lib/types.ts`, `lib/presence.ts`: `focus` di presence dan event `PresenceChanged`.
+- `lib/scene/tampilan.ts`: `Rakitan.fokus`.
+- `components/scene/avatar.tsx`: headphone, dan penempelan potongan ke tulang dipisah jadi fungsi `tempel`.
+- `components/scene/scene.tsx`: 🎧 di label dan rakitan dengan `fokus`.
+- `components/daftar-presence.tsx`: tag Fokus.
+- `app/(app)/kelas/[slug]/page.tsx`: tombol fokus dan banner yang ditahan.
+- `lib/presence.test.ts`, `lib/scene/scene.test.ts`, `components/scene/model.test.ts`: fixture dan tes baru (headphone menempel di tulang kepala, di atas ubun-ubun, simetris).
+
+Tes: `npx vitest run` (44 tes), `npx tsc --noEmit`, `npx eslint lib components "app/(app)"`, dan `npm run build` bersih. Tampilan headphone dan tombolnya belum dicek di browser.
+
+### 2026-11-12 · Antrean bantuan dan share layar sukarela (Fitur B)
+
+Antrean angkat tangan untuk koordinator dan ketua kelas, dan peserta yang sedang dibantu bisa membagikan layarnya sendiri ke yang menangani. Share sukarela memakai `lib/webrtc.ts` dan alur kartu lihat layar yang sama, tanpa langkah ketua. Kontraknya di `kelas3d-api/dokumentasi.md` bagian Angkat tangan.
+
+Cara kerjanya di web:
+
+- Peserta menekan "Bagikan layar": pemilih layar dibuka dulu dari klik, baru `POST /api/help-requests/{id}/screen-session`. Sesinya langsung `menyambung`, lalu `siarkan` (bagian pengirim yang dipisah dari `izinkan`) bergabung ke channel signaling.
+- Antrean: yang belum ditangani dulu, lalu urut waktu angkat tangan (`antreanBantuan` di `lib/presence.ts`). Waktu dibandingkan sebagai tanggal karena REST memakai UTC dan event +07:00. Di Gedung antreannya untuk tab kelas yang aktif, dan tab kelas lain diberi ✋ dengan jumlahnya. Di halaman kelas, panel kanan muncul sendiri untuk staf selama antrean ada isinya.
+- Kartu dan penanda untuk share sukarela: label "Bantuan", judul "Kamu membagikan layar ke …", tanpa langkah Ketua dan Mahasiswa, dan penanda "Layarmu sedang dilihat <nama>" tanpa kata koordinator karena penontonnya bisa ketua kelas.
+
+File baru:
+
+- `components/antrean-bantuan.tsx`.
+
+File diubah:
+
+- `lib/types.ts`: `HelpRequestOpen` (dengan `handled_by` dan `created_at`), `HelpRequestedEvent.created_at`, `ScreenSession.help_request_id`.
+- `lib/presence.ts`: `applyHelpRequested` membawa penanganan, `antreanBantuan`.
+- `components/layar/penyedia.tsx`: `pilihLayar` dan `siarkan` dipisah dari `izinkan`, ditambah `bagikan`.
+- `components/layar/kartu-layar.tsx`: teks untuk share sukarela.
+- `components/angkat-tangan.tsx`: "Dibantu <nama>" dan tombol "Bagikan layar".
+- `components/detail-presence.tsx`: nama penangan.
+- `components/panel-ketua.tsx`: log Layar membedakan share sukarela.
+- `app/(app)/gedung/page.tsx`: antrean di panel kanan, ✋ di tab kelas.
+- `app/(app)/kelas/[slug]/page.tsx`: antrean untuk staf di panel kanan.
+- `lib/presence.test.ts`, `lib/layar.test.ts`, `lib/scene/scene.test.ts`: fixture field baru dan tes urutan antrean.
+
+Tes: `npx vitest run` (45 tes, 1 baru), `npx tsc --noEmit`, `npx eslint app components lib`, dan `npm run build` bersih. Belum dicek di browser.
+
+### 2026-11-18 · Progresku (Fitur B)
+
+Halaman `/progres` untuk peserta (termasuk ketua kelas), dari `GET /api/progress`. Tiga angka (aktif dan ngoding untuk hari, minggu, atau bulan ini, plus streak sekarang dan terbaik) dan grafik batang yang bisa dipindah Hari (14 hari), Minggu (8 minggu mulai Senin), atau Bulan (3 bulan). Batang ngoding hitam, sisa waktu aktif hijau. Tanpa perbandingan dengan teman.
+
+File baru:
+
+- `lib/progres.ts`: tipe `Progress`, `kelompokkan` (menjumlah hari ke hari, minggu, atau bulan, hari kosong tetap tampil), `hariIniJakarta`.
+- `lib/progres.test.ts`: 3 tes (14 hari, minggu lewat batas bulan, bulan lewat pergantian tahun).
+- `app/(app)/progres/page.tsx`: halaman Progresku.
+
+File diubah:
+
+- `app/(app)/session.tsx`: navigasi Kelas dan Progresku di header untuk role peserta.
+
+Tes: `npx vitest run` (48 tes, 3 baru), `npx tsc --noEmit`, `npx eslint` untuk file yang berubah, dan `npm run build` bersih. Belum dicek di browser.
+
+### 2026-11-18 · XP dan aksesoris (Fitur B)
+
+Kartu Level di bawah Progresku: level, XP, bilah menuju level berikutnya, dan pilihan aksesoris per slot (Topi, Item meja). Yang belum terbuka bertanda 🔒 dengan level yang dibutuhkan. Memilih aksesoris memanggil `PUT /api/aksesoris` lalu memperbarui `me`, jadi pratinjau avatar langsung ikut.
+
+Bentuk aksesoris di 3D masih sementara, sampai asetnya dibuat di Blender:
+
+- Topi menempel ke tulang kepala lewat `buatAvatar`, sama seperti headphone, jadi tetap satu draw call per avatar. `topi_1` kubah biru dengan lidah ke depan, `topi_2` kubah hijau dengan pompom. Kalau headphone dipakai juga, bandonya tertutup topi.
+- Item meja ditaruh di sebelah kanan laptop kursi pemiliknya (`components/scene/item-meja.tsx`). Posisinya dari kotak laptop yang sekarang dicatat di `Dunia.laptop`, dengan arah dari yaw titik `seat_`. `meja_1` mug, `meja_2` pot tanaman. Item cuma tampil di ruangan yang sedang ditampilkan.
+- Avatar sendiri di scene kelas memakai `user.avatar` dari presence, jadi topi baru terlihat di sana sesudah halaman kelas dimuat ulang.
+
+File baru:
+
+- `components/scene/item-meja.tsx`.
+
+File diubah:
+
+- `lib/types.ts`: `Avatar.aksesoris`.
+- `lib/progres.ts`: tipe `Aksesoris`, `SlotAksesoris`, serta `xp`, `aksesoris`, dan `dipakai` di `Progress`.
+- `app/(app)/progres/page.tsx`: kartu Level dan pemilih aksesoris.
+- `lib/scene/tampilan.ts`: `Rakitan.topi`.
+- `components/scene/avatar.tsx`: topi sementara di tulang kepala.
+- `components/scene/dunia.ts`: `laptop` (kotak laptop per kursi).
+- `components/scene/scene.tsx`: item meja dari `user.avatar.aksesoris.meja` per kursi.
+- `components/scene/model.test.ts`: 3 tes baru (dua topi, termasuk bersama headphone; semua 32 kursi punya laptop di ketinggian meja).
+
+Tes: `npx vitest run` (51 tes), `npx tsc --noEmit`, `npx eslint app components lib`, dan `npm run build` bersih. Belum dicek di browser.

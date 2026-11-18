@@ -13,8 +13,9 @@ export function getEcho(): Echo<"reverb"> {
     key: process.env.NEXT_PUBLIC_REVERB_APP_KEY ?? "",
     wsHost: process.env.NEXT_PUBLIC_REVERB_HOST ?? "localhost",
     wsPort: Number(process.env.NEXT_PUBLIC_REVERB_PORT ?? 8080),
-    forceTLS: false,
-    enabledTransports: ["ws"],
+    // TLS cuma kalau diminta lewat env; demo di jaringan kelas tetap http dan ws.
+    forceTLS: process.env.NEXT_PUBLIC_REVERB_SCHEME === "https",
+    enabledTransports: ["ws", "wss"],
     // Otorisasi channel lewat sesi web: cookie dan X-XSRF-TOKEN, sama dengan request API lain.
     channelAuthorization: {
       customHandler: ({ socketId, channelName }, callback) => {
