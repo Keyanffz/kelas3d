@@ -56,6 +56,8 @@ export interface Presence {
   last_heartbeat_at: string | null;
   help_request: HelpRequestOpen | null;
   // Field di bawah ini cuma dikirim untuk koordinator dan ketua kelas.
+  // Sejak kapan aplikasi fokus terlihat terbuka.
+  app_since?: string | null;
   project?: string | null;
   file_name?: string | null;
   language?: string | null;
@@ -75,6 +77,8 @@ export interface HelpRequestOpen {
 export interface OpenApp {
   activity: Activity;
   label: string;
+  // Kosong di data sebelum 19 Nov.
+  since?: string;
 }
 
 export interface Coordinator {

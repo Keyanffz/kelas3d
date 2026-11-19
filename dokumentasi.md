@@ -482,3 +482,15 @@ File diubah:
 - `components/scene/model.test.ts`: 3 tes baru (dua topi, termasuk bersama headphone; semua 32 kursi punya laptop di ketinggian meja).
 
 Tes: `npx vitest run` (51 tes), `npx tsc --noEmit`, `npx eslint app components lib`, dan `npm run build` bersih. Belum dicek di browser.
+
+### 2026-11-19 · Lama aplikasi terbuka
+
+Panel detail peserta (koordinator dan ketua kelas) menampilkan "terbuka 1 j 20 mnt" di baris Aplikasi dan di tiap aplikasi Juga terbuka. Waktunya dari `app_since` dan `open_apps[].since` yang dihitung API, diperbarui tiap detik lewat `useNow`. Data lama tanpa waktu cuma menampilkan nama aplikasinya.
+
+File diubah:
+
+- `lib/types.ts`: `Presence.app_since` dan `OpenApp.since`.
+- `components/detail-presence.tsx`: `terbuka()` memakai `formatDuration`.
+
+Tes: `npx tsc --noEmit` dan `npx eslint` untuk dua file itu bersih. Belum dicek di browser.
+

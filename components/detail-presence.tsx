@@ -3,7 +3,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { sesiAktif, STATUS_LAYAR } from "@/lib/layar";
-import { ACTIVITY_LABEL, formatClock, HELP_LABEL, STATE_LABEL, subAktivitas } from "@/lib/presence";
+import { ACTIVITY_LABEL, formatClock, formatDuration, HELP_LABEL, STATE_LABEL, subAktivitas } from "@/lib/presence";
 import { LAYAR } from "@/lib/scene/keadaan";
 import type { HelpStatus, Presence } from "@/lib/types";
 import { lama, STATE_COLOR, useNow } from "./daftar-presence";
@@ -92,7 +92,10 @@ export function DetailPresence({
         <Baris k="Sejak">
           {p.state_since && p.state !== "keluar" ? `${formatClock(p.state_since)} WIB · ${lama(p, now)}` : "—"}
         </Baris>
-        <Baris k="Aplikasi">{p.app_label ?? "—"}</Baris>
+        <Baris k="Aplikasi">
+          {p.app_label ?? "—"}
+          {p.app_label && <span className="text-pudar">{terbuka(p.app_since, now)}</span>}
+        </Baris>
         <Baris k="Project">{p.project ?? "—"}</Baris>
         <Baris k="File">
           <span className="font-mono">{p.file_name ?? "—"}</span>
@@ -106,7 +109,11 @@ export function DetailPresence({
               {p.open_apps.map((a) => (
                 <li key={a.label} title={ACTIVITY_LABEL[a.activity]}>
                   <span className="mr-1.5 inline-block size-2.5" style={{ backgroundColor: LAYAR[a.activity] }} />
-                  {a.label} <span className="text-pudar">· {ACTIVITY_LABEL[a.activity]}</span>
+                  {a.label}{" "}
+                  <span className="text-pudar">
+                    · {ACTIVITY_LABEL[a.activity]}
+                    {terbuka(a.since, now)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -193,4 +200,9 @@ function Baris({ k, children }: { k: string; children: ReactNode }) {
       <dd>{children}</dd>
     </>
   );
+}
+
+// Lama aplikasi terbuka, dihitung server dari heartbeat pertama yang melihatnya.
+function terbuka(since: string | null | undefined, now: number): string {
+  return since && now ? ` · terbuka ${formatDuration((now - new Date(since).getTime()) / 1000)}` : "";
 }
