@@ -5,13 +5,15 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Vector3, type Box3 } from "three";
 import type { OrbitControls as OrbitImpl, PointerLockControls } from "three-stdlib";
+import { useRapat } from "@/components/rapat/penyedia";
+import type { PesertaRapat } from "@/lib/rapat";
 import { subAktivitas } from "@/lib/presence";
 import { roomKey } from "@/lib/scene/graf";
 import { tujuanKelas, tujuanKunjungan, warnaLayar, type Adegan, type Tujuan } from "@/lib/scene/keadaan";
 import { rakit } from "@/lib/scene/tampilan";
-import type { Coordinator, Me, PresenceList } from "@/lib/types";
+import type { Avatar as TampilanAvatar, Coordinator, Me, PresenceList } from "@/lib/types";
 import { Avatar, type Terdaftar } from "./avatar";
-import { siapkan, type Dunia } from "./dunia";
+import { ruangDi, siapkan, type Dunia } from "./dunia";
 import { ItemMeja } from "./item-meja";
 import { Jelajah } from "./jelajah";
 
@@ -36,6 +38,14 @@ export interface SceneProps {
   adegan?: Adegan | null;
 }
 
+interface TamuScene extends PesertaRapat { kunci: string; avatar?: TampilanAvatar }
+interface SceneRapat extends SceneProps {
+  diRapat: boolean;
+  tambahan: TamuScene[];
+  kursiKoordinator: Map<number, string>;
+  laporKursi: (kursi: string | null | undefined) => void;
+}
+
 interface LabelData {
   kunci: string;
   nama: string;
@@ -45,15 +55,16 @@ interface LabelData {
   fokus: boolean;
   saya: boolean;
   balon: string | null;
+  bicara?: boolean;
 }
 
 // Label di atas kepala: lapisan DOM biasa yang posisinya diproyeksikan tiap frame,
 // lebih ringan daripada satu root React per avatar.
-function daftarLabel({ me, kelas, koordinator, semua, adegan }: SceneProps): LabelData[] {
+function daftarLabel({ me, kelas, koordinator, semua, adegan, tambahan }: SceneRapat): LabelData[] {
   const out: LabelData[] = [];
   for (const k of kelas) {
     for (const p of k.room.data) {
-      if (!p.seat_code) continue;
+      if (!p.seat_code && p.meeting?.status !== "hadir") continue;
       out.push({
         kunci: `p:${p.user.id}`,
         nama: p.user.name,
@@ -80,6 +91,10 @@ function daftarLabel({ me, kelas, koordinator, semua, adegan }: SceneProps): Lab
       balon: adegan?.from.id === c.id ? adegan.message : null,
     });
   }
+  for (const p of tambahan) out.push({
+    kunci: p.kunci, nama: p.name, sub: null, tag: p.classroom ? null : "koordinator",
+    tangan: false, fokus: false, saya: false, balon: null,
+  });
   return out;
 }
 
@@ -90,7 +105,39 @@ export default function Scene(props: SceneProps) {
   const [terkunci, setTerkunci] = useState(false);
   const [bidik, setBidik] = useState<string | null>(null);
   const [pintu, setPintu] = useState<boolean | null>(null);
-  const labels = daftarLabel(props);
+  const { rapat, media, laporKursi } = useRapat();
+  const diRapat = rapat?.self?.status === "hadir";
+  const tambahan: TamuScene[] = [];
+  const kursiKoordinator = new Map<number, string>();
+  if (rapat && (props.semua || diRapat)) {
+    const namaSama = new Map<string, number>();
+    for (const [slot, p] of rapat.participants.entries()) {
+      const peer = media?.orang.find((u) => u.slot === slot && u.nama === p.name);
+      if (p.classroom && props.kelas.some((k) => k.slug === p.classroom)) continue;
+      if (!p.classroom) {
+        const id = p.user_id ?? (peer ? Number(peer.id) : undefined);
+        const dikenal = [props.me, ...props.koordinator].find((u) => (u.id === props.me.id ? props.me.role === "koordinator" : true) &&
+          (id !== undefined ? id === u.id : u.name === p.name));
+        if (dikenal) {
+          if (p.status === "hadir") kursiKoordinator.set(dikenal.id, p.seat);
+          continue;
+        }
+      }
+      const nama = JSON.stringify([p.classroom, p.name]);
+      const urutan = (namaSama.get(nama) ?? 0) + 1;
+      namaSama.set(nama, urutan);
+      tambahan.push({ ...p, avatar: peer?.avatar, kunci: p.user_id ? `rapat:${p.user_id}` : `rapat:${nama}:${urutan}` });
+    }
+  }
+  const ruang = { ...props, diRapat, tambahan, kursiKoordinator, laporKursi };
+  const labels = daftarLabel(ruang);
+  for (const u of media?.orang ?? []) {
+    if (!u.bicara) continue;
+    const orang = u.slot !== undefined ? rapat?.participants[u.slot] : undefined;
+    const extra = orang && tambahan.find((p) => p.seat === orang.seat && p.status === "hadir");
+    const label = labels.find((l) => l.kunci === extra?.kunci || l.kunci === `p:${u.id}` || l.kunci === `k:${u.id}`);
+    if (label) label.bicara = true;
+  }
   const infoBidik = bidik ? labels.find((l) => l.kunci === bidik) : undefined;
 
   return (
@@ -101,7 +148,7 @@ export default function Scene(props: SceneProps) {
         <directionalLight position={[12, 18, 10]} intensity={1.6} />
         <directionalLight position={[-8, 10, -6]} intensity={0.5} />
         <Suspense fallback={null}>
-          <Isi {...props} kontrol={kontrol} labelEl={labelEl} onSiap={setSiap} onKunci={setTerkunci} onBidik={setBidik} onPintu={setPintu} />
+          <Isi {...ruang} kontrol={kontrol} labelEl={labelEl} onSiap={setSiap} onKunci={setTerkunci} onBidik={setBidik} onPintu={setPintu} />
         </Suspense>
       </Canvas>
 
@@ -180,7 +227,7 @@ function Label({ l }: { l: LabelData }) {
         <p className="text-[11px] font-bold">
           {l.tangan && <span className="mr-1 text-oranye">✋</span>}
           {l.fokus && <span className="mr-1" title="Sedang fokus">🎧</span>}
-          {l.nama}
+          {l.bicara && <span title="Sedang bicara">🔊 </span>}{l.nama}
         </p>
         {l.tag === "ketua" && <p className="font-mono text-[9px] uppercase tracking-wider text-marun">Ketua Kelas</p>}
         {l.tag === "koordinator" && <p className="font-mono text-[9px] uppercase tracking-wider text-oranye">Koordinator</p>}
@@ -195,11 +242,12 @@ interface Sosok {
   tipe: "laki" | "perempuan";
   rakitan: ReturnType<typeof rakit>;
   tujuan: Tujuan;
+  pintu?: string;
   pick?: () => void;
 }
 
 function Isi(
-  props: SceneProps & {
+  props: SceneRapat & {
     kontrol: RefObject<PointerLockControls | null>;
     labelEl: RefObject<Map<string, HTMLDivElement>>;
     onSiap: (v: boolean) => void;
@@ -208,7 +256,7 @@ function Isi(
     onPintu: (terbuka: boolean | null) => void;
   },
 ) {
-  const { me, kelas, semua, staff, selected, onSelect, kunjungan, jelajah, adegan, koordinator, onSiap } = props;
+  const { me, kelas, semua, staff, selected, onSelect, kunjungan, jelajah, adegan, koordinator, onSiap, diRapat, tambahan, kursiKoordinator, laporKursi } = props;
   const gedung = useGLTF(MODEL.gedung);
   const laki = useGLTF(MODEL.laki);
   const perempuan = useGLTF(MODEL.perempuan);
@@ -251,7 +299,10 @@ function Isi(
       const visit =
         c.id === me.id && kunjungan !== undefined ? kunjungan : (kelas.find((k) => k.room.coordinators.some((x) => x.id === c.id))?.slug ?? null);
       let tujuan: Tujuan = { kind: "keluar" };
-      if (visit && kelas.some((k) => k.slug === visit)) {
+      const seat = kursiKoordinator.get(c.id);
+      if (seat) {
+        tujuan = { kind: "duduk", point: `seat_${seat}`, clip: "duduk_santai" };
+      } else if (visit && kelas.some((k) => k.slug === visit)) {
         const ketua = kelas.find((k) => k.slug === visit)?.room.data.find((p) => p.role === "admin" && p.seat_code);
         // Adegan teguran: koordinator berdiri di belakang kursi ketua kelas sambil bicara.
         tujuan =
@@ -268,8 +319,13 @@ function Isi(
         tujuan,
       });
     }
+    for (const p of tambahan) out.push({
+      kunci: p.kunci, tipe: p.avatar?.tipe_badan ?? "laki", rakitan: rakit(p.avatar ?? null, { slug: p.classroom, ketua: false, koordinator: !p.classroom }),
+      tujuan: p.status === "hadir" ? { kind: "duduk", point: `seat_${p.seat}`, clip: "duduk_santai" } : { kind: "keluar" },
+      pintu: p.classroom ? `door_${roomKey(p.classroom)}` : "door_koordinator",
+    });
     return out;
-  }, [kelas, koordinator, me, semua, staff, onSelect, kunjungan, jelajah, adegan, dunia]);
+  }, [tambahan, kursiKoordinator, kelas, koordinator, me, semua, staff, onSelect, kunjungan, jelajah, adegan, dunia]);
 
   const layar = useMemo(() => {
     const m = new Map<string, string>();
@@ -288,12 +344,18 @@ function Isi(
   }, [kelas]);
 
   const tampil = semua ? null : utama ? roomKey(utama) : null;
-  const box = (tampil && dunia.lantai.get(tampil)) || dunia.bounds;
+  const box = (diRapat && !semua && dunia.lantai.get("koordinator")) || (tampil && dunia.lantai.get(tampil)) || dunia.bounds;
+  const bolehLihat = useCallback((x: number, z: number) => {
+    if (!tampil) return true;
+    const ruang = ruangDi(dunia, { x, z });
+    return ruang === tampil || (diRapat && (ruang === "koordinator" || ruang === "lorong"));
+  }, [dunia, tampil, diRapat]);
+  useEffect(() => { laporKursi(null); return () => laporKursi(undefined); }, [laporKursi]);
   const slugDari = (room: string | null) => kelas.find((k) => roomKey(k.slug) === room)?.slug ?? null;
 
   return (
     <>
-      <Gedung dunia={dunia} tampil={tampil} jelajah={!!jelajah} layar={layar} avatars={avatars} />
+      <Gedung dunia={dunia} tampil={tampil} diRapat={diRapat} jelajah={!!jelajah} layar={layar} avatars={avatars} />
       <ItemMeja dunia={dunia} item={itemMeja} tampil={tampil} />
       <PosisiLabel avatars={avatars} labelEl={props.labelEl} jelajah={!!jelajah} />
       {jelajah ? (
@@ -322,7 +384,9 @@ function Isi(
           gltf={s.tipe === "perempuan" ? perempuan : laki}
           rakitan={s.rakitan}
           graf={dunia.graf}
-          pintu={pintu}
+          pintu={s.pintu ?? pintu}
+          bolehLihat={bolehLihat}
+          laporKursi={s.kunci === `${me.role === "koordinator" ? "k" : "p"}:${me.id}` ? laporKursi : undefined}
           tujuan={s.tujuan}
           selected={selected !== null && s.kunci === `p:${selected}`}
           onPick={s.pick}
@@ -373,12 +437,14 @@ function PosisiLabel({
 function Gedung({
   dunia,
   tampil,
+  diRapat,
   jelajah,
   layar,
   avatars,
 }: {
   dunia: Dunia;
   tampil: string | null;
+  diRapat: boolean;
   jelajah: boolean;
   layar: Map<string, string>;
   avatars: RefObject<Map<string, Terdaftar>>;
@@ -387,8 +453,8 @@ function Gedung({
 
   useEffect(() => {
     // Peserta dan ketua kelas cuma melihat ruangannya; empty induk ruangan lain disembunyikan.
-    for (const [key, obj] of dunia.akar) obj.visible = tampil === null || key === tampil;
-  }, [dunia, tampil]);
+    for (const [key, obj] of dunia.akar) obj.visible = tampil === null || key === tampil || (diRapat && (key === "koordinator" || key === "lorong"));
+  }, [dunia, tampil, diRapat]);
 
   useEffect(() => {
     for (const [key, m] of dunia.layar) {

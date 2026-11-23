@@ -494,3 +494,34 @@ File diubah:
 
 Tes: `npx tsc --noEmit` dan `npx eslint` untuk dua file itu bersih. Belum dicek di browser.
 
+
+### 2026-11-21 · Ruang rapat, tahap B–D
+
+Koordinator membuka **Buka rapat** di Gedung, memilih peserta yang sedang berada di kelas, lalu menunjuk kursi pada denah tujuh kursi tamu. **Kelola rapat** menampilkan status, pindah kursi, keluarkan, dan tutup rapat. Kartu panggilan tersedia di semua halaman setelah login. Tombol **Masuk** mengaktifkan keluaran audio dan membuka kelas asal bila perlu. Ketua kelas melihat info panggilan di panelnya.
+
+Selama hadir, peserta melihat ruang koordinator, lorong, dan kelas asalnya. Avatar berjalan melalui graf gedung dan duduk menghadap meja. Di scene aktif media mulai sesudah avatar duduk. Pada halaman tanpa scene, kehadiran dari server memungkinkan peserta menyambung kembali. Mic dan kamera mulai mati. Panel media bisa dikecilkan sambil mendengar peserta lain. Jika server media belum tersedia, peserta tetap dapat dipanggil, duduk, dipindah, atau keluar.
+
+File yang ditambahkan atau diubah:
+
+- `lib/rapat.ts`, `lib/rapat.test.ts`, `lib/types.ts`, dan `lib/use-rooms.ts` menggabungkan status rapat dari REST dengan event ruang, menentukan kursi kosong dan peserta yang dapat dipanggil.
+- `app/(app)/session.tsx`, `components/layar/penyedia.tsx`, dan `components/rapat/penyedia.tsx` berbagi langganan pribadi untuk kartu layar dan rapat serta memuat ulang sesudah tersambung kembali.
+- `components/rapat/kartu.tsx`, `components/rapat/panel-koordinator.tsx`, `app/(app)/gedung/page.tsx`, dan `app/(app)/kelas/[slug]/page.tsx` memasang kartu panggilan, denah kursi dan panel ketua.
+- `components/scene/dunia.ts`, `lib/scene/graf.ts`, `lib/scene/keadaan.ts`, `components/scene/scene.tsx`, dan `components/scene/avatar.tsx` menyiapkan tujuh titik tamu sementara, gang di belakang kursi, tujuan rapat, kamera, serta batas ruangan yang dapat dilihat. `components/scene/model.test.ts` dan `lib/scene/scene.test.ts` memeriksa model dan perjalanan pulang-pergi.
+- `package.json` dan `package-lock.json` menambah `livekit-client`. `components/rapat/use-media-rapat.ts` mengelola satu koneksi per rapat, pergantian track, penanda bicara, pemulihan autoplay, dan pelepasan perangkat. `components/rapat/panel-media.tsx` menampilkan kamera dan layar, tombol media, serta tombol keluar.
+
+#### Uji manual Key
+
+1. **Dua profil di localhost.** Jalankan API, worker, scheduler, Reverb, web, dan `livekit-server --dev`. Gunakan akun koordinator dan peserta berbeda. Peserta perlu presence aktif atau istirahat. Untuk melihat banyak avatar tanpa laptop tambahan, jalankan `php artisan kelas3d:simulasi developer --rapat`.
+2. **Panggil dan duduk.** Dari Gedung, panggil peserta. Coba **Nanti dulu**, panggil ulang ke kursi lain, lalu **Masuk** dari halaman Progresku. Cek hitung mundur, info panel ketua, dua pintu yang dilewati, kursi tujuan, dan kamera kembali ke kelas sesudah keluar. Muat ulang sewaktu ada panggilan dan sewaktu sudah duduk.
+3. **Media dua arah.** Pakai headphone. Pastikan mic dan kamera awalnya mati, nyalakan satu per satu dari tiap profil, cek suara, gambar, dan tanda 🔊. Bagikan satu jendela, kecilkan panel, lalu hentikan dari kontrol bawaan browser. Coba tolak izin dan coba tombol Aktifkan suara bila autoplay diblokir.
+4. **Pindah dan putus.** Pindah kursi selagi mic menyala. Keluarkan peserta dan pastikan suara serta indikator mic/kamera browser berhenti. Panggil ulang ke rapat yang sama. Tutup rapat saat ada peserta hadir dan satu panggilan menunggu. Coba juga saat LiveKit dimatikan, pastikan alur kursi tetap bisa dipakai.
+5. **Beberapa laptop di production.** Gunakan dua kelas dan kedua koordinator lewat HTTPS. Isi tujuh kursi, cek bahwa satu kursi hanya menampung satu tamu, dan amati perjalanan dari kedua kelas. Uji share screen dari laptop lain dan koneksi dari jaringan di luar WiFi kelas. Periksa kandidat ICE terpilih di statistik WebRTC browser untuk menguji TURN saat jalur langsung dibatasi. Akhiri rapat dan pastikan semua laptop berhenti mengirim media.
+
+### 2026-11-23 · Review ruang rapat
+
+- `components/rapat/panel-media.tsx`: tombol **Keluar rapat** cuma untuk kursi tamu. Koordinator mengakhiri lewat Tutup rapat (API juga menolak).
+- `components/scene/model.test.ts`: tes perjalanan avatar dengan tujuh titik tamu dari `gedung.glb` asli, dari Developer dan Data Science ke kursi 1, 4, dan 7, pindah kursi, pulang, lalu masuk lagi. Tiap langkah harus berakhir duduk di kursi yang benar dan tidak menembus lengkung `meja_koordinator`.
+
+Uji: `npx vitest run` 57 lulus, `npx tsc --noEmit` dan `npx eslint` file yang berubah bersih, `npm run build` lolos.
+
+Catatan: titik berdiri sebelum duduk di kursi tamu sekitar 2 cm masuk ke tepi meja, karena kursi tamu di Blender lebih mepet meja daripada kursi kelas. Rapikan saat titik `seat_tamu_N` asli dibuat. Tanpa LiveKit, tamu dari kelas lain yang dilihat peserta memakai tampilan avatar bawaan, karena tampilannya diambil dari metadata media.

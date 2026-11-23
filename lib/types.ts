@@ -42,6 +42,7 @@ export interface Classroom {
 }
 
 export interface Presence {
+  meeting?: import("./rapat").PosisiRapat | null;
   member_id: number;
   role: MemberRole;
   seat_code: string | null;

@@ -213,6 +213,8 @@ export interface AvatarProps {
   pintu: string;
   tujuan: Tujuan;
   selected?: boolean;
+  bolehLihat?: (x: number, z: number) => boolean;
+  laporKursi?: (kursi: string | null) => void;
   onPick?: () => void;
   // Didaftarkan ke scene untuk label, pintu otomatis, dan bidikan mode Jelajah.
   daftar?: (kunci: string, avatar: Terdaftar | null) => void;
@@ -225,12 +227,13 @@ export interface Terdaftar {
   diam: () => boolean;
 }
 
-export function Avatar({ kunci: id, gltf, rakitan, graf, pintu, tujuan, selected, onPick, daftar }: AvatarProps) {
+export function Avatar({ kunci: id, gltf, rakitan, graf, pintu, tujuan, selected, onPick, daftar, bolehLihat, laporKursi }: AvatarProps) {
   const { root, mixer, play } = useAvatar(gltf, rakitan);
   const group = useRef<Group>(null);
   const hit = useRef<Mesh>(null);
   const gerak = useRef<Gerak | null>(null);
   const tujuanAwal = useRef(tujuan);
+  const dilaporkan = useRef<string | null | undefined>(undefined);
   const playRef = useRef(play);
 
   useEffect(() => {
@@ -270,6 +273,11 @@ export function Avatar({ kunci: id, gltf, rakitan, graf, pintu, tujuan, selected
     const g = gerak.current;
     if (!g) return;
     g.update(d);
+    if (group.current && bolehLihat) group.current.visible = g.pose.visible && bolehLihat(g.pose.x, g.pose.z);
+    if (laporKursi && dilaporkan.current !== g.pose.seated) {
+      dilaporkan.current = g.pose.seated;
+      laporKursi(g.pose.seated);
+    }
   });
 
   return (

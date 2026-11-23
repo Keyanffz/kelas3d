@@ -67,6 +67,18 @@ export function buatGraf(list: Titik[]): Graf {
     if (wp.length >= 3) edges.push({ a: wp[wp.length - 1], b: wp[0], room });
   }
 
+  // Gang di belakang lengkung kursi tamu, supaya rute ke kursi barat tidak memotong meja.
+  const gang = list.filter((t) => /^seat_tamu_[1-7]$/.test(t.name)).sort((a, b) => nomor(a.name) - nomor(b.name)).map((t) => {
+    const name = `wp_tamu_${nomor(t.name)}`;
+    titik.set(name, { ...t, ...depan(t, -0.65), name });
+    return name;
+  });
+  if (gang.length === 7) {
+    rantai(gang, "koordinator");
+    rantai(["wp_koordinator_1", gang[3]], "koordinator");
+    rantai(["wp_koordinator_2", gang[0]], "koordinator");
+  }
+
   return { titik, edges };
 }
 
@@ -160,6 +172,7 @@ export function depan(t: Titik, d = 0.3): Vec {
 
 export function ruangTitik(name: string): string {
   if (name === "door_gedung" || name.startsWith("wp_lorong_")) return "lorong";
+  if (/^(seat|wp)_tamu_/.test(name)) return "koordinator";
   const m = name.match(/^(?:seat|rest|stand|door|wp)_(developer|data_science|koordinator)/);
   if (!m) throw new Error(`Titik tidak dikenal: ${name}`);
   return m[1];

@@ -103,7 +103,12 @@ export default function KelasPage() {
                 <DetailPresence p={dipilih} slug={slug} bisaTegur={me.role === "koordinator"} berkunjung={false} onClose={() => setPilih(null)} />
               )}
               {panel && ketua && (
-                <PanelKetua slug={slug} koordinator={false} teguran={teguran} setTeguran={setTeguran} onBerubah={() => muatUlang(slug)} />
+                <>
+                  {room.data.filter((p) => p.meeting?.status === "dipanggil" || p.meeting?.status === "hadir").map((p) =>
+                    <p key={p.user.id} className="border-b px-3 py-2 text-sm">{p.user.name} {p.meeting?.status === "dipanggil" ? "dipanggil ke" : "sedang di"} ruang koordinator.</p>
+                  )}
+                  <PanelKetua slug={slug} koordinator={false} teguran={teguran} setTeguran={setTeguran} onBerubah={() => muatUlang(slug)} />
+                </>
               )}
             </aside>
           )}

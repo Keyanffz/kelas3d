@@ -7,6 +7,8 @@ import { AntreanBantuan } from "@/components/antrean-bantuan";
 import { DaftarPresence } from "@/components/daftar-presence";
 import { DaftarRingkas } from "@/components/daftar-ringkas";
 import { DetailPresence } from "@/components/detail-presence";
+import { PanelKoordinator } from "@/components/rapat/panel-koordinator";
+import { useRapat } from "@/components/rapat/penyedia";
 import { FormPengumuman } from "@/components/form-pengumuman";
 import { useLayar } from "@/components/layar/penyedia";
 import { ToggleMode } from "@/components/toggle-mode";
@@ -25,6 +27,8 @@ const Scene = dynamic(() => import("@/components/scene/scene"), {
 export default function GedungPage() {
   const me = useMe();
   const router = useRouter();
+  const { rapat } = useRapat();
+  const hadir = rapat?.self?.status === "hadir";
   const koordinator = me.role === "koordinator";
   const [classrooms, setClassrooms] = useState<Classroom[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +54,7 @@ export default function GedungPage() {
   const slugs = useMemo(() => classrooms?.map((c) => c.slug) ?? [], [classrooms]);
   const { rooms, error: roomError, koordinator: kenal, pengumuman, riwayatPengumuman, tutupPengumuman, adegan, selesaiAdegan } = useRooms(slugs, true);
   const kunjunganData = slugs.find((s) => rooms[s]?.coordinators.some((c) => c.id === me.id)) ?? null;
-  const kunjungan = kunjunganPilihan !== undefined ? kunjunganPilihan : kunjunganData;
+  const kunjungan = hadir ? null : kunjunganPilihan !== undefined ? kunjunganPilihan : kunjunganData;
 
   // Balon teguran tampil sebentar, lalu koordinator kembali ke titik berdirinya.
   useEffect(() => {
@@ -111,7 +115,7 @@ export default function GedungPage() {
             type="button"
             className={`tombol ${kunjungan === c.slug ? "bg-oranye text-kertas" : ""}`}
             onClick={() => kunjungi(c.slug)}
-            disabled={kunjungan === c.slug}
+            disabled={hadir || kunjungan === c.slug}
           >
             {c.name}
           </button>
@@ -120,8 +124,9 @@ export default function GedungPage() {
           Ruang koordinator
         </button>
         <div className="ml-auto flex gap-2">
+          <PanelKoordinator rooms={rooms} onBuka={() => { setKunjunganPilihan(null); setJelajah(false); }} />
           {mode === "3d" && (
-            <button type="button" className="tombol" onClick={() => setJelajah(true)} disabled={jelajah}>
+            <button type="button" className="tombol" onClick={() => setJelajah(true)} disabled={hadir || jelajah}>
               Jelajah
             </button>
           )}
@@ -159,7 +164,7 @@ export default function GedungPage() {
               selected={pilih?.id ?? null}
               onSelect={onSelect}
               kunjungan={kunjungan}
-              jelajah={jelajah}
+              jelajah={jelajah && !hadir}
               onJelajah={setJelajah}
               onRuang={onRuang}
               adegan={adegan ?? adeganLayar(sesi)}

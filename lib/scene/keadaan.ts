@@ -41,7 +41,7 @@ export function tujuanKelas(list: Presence[], slug: string, titik: string[]): Ma
   const out = new Map<number, Tujuan>();
 
   const istirahat = list
-    .filter((p) => p.seat_code && p.state === "istirahat" && p.state_reason === "jadwal_istirahat")
+    .filter((p) => p.meeting?.status !== "hadir" && p.seat_code && p.state === "istirahat" && p.state_reason === "jadwal_istirahat")
     .sort((a, b) => a.seat_code!.localeCompare(b.seat_code!, "en", { numeric: true }));
   istirahat.forEach((p, i) => {
     const point = i < rest.length ? rest[i] : stand[i - rest.length];
@@ -49,6 +49,10 @@ export function tujuanKelas(list: Presence[], slug: string, titik: string[]): Ma
   });
 
   for (const p of list) {
+    if (p.meeting?.status === "hadir") {
+      out.set(p.user.id, { kind: "duduk", point: `seat_${p.meeting.seat}`, clip: "duduk_santai" });
+      continue;
+    }
     if (!p.seat_code || out.has(p.user.id)) continue;
     if (p.state === "keluar") {
       out.set(p.user.id, { kind: "keluar" });

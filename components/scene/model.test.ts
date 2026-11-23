@@ -6,6 +6,7 @@ import { expect, it } from "vitest";
 import { bagianTampil, rakit } from "@/lib/scene/tampilan";
 import { buatAvatar } from "./avatar";
 import { siapkan } from "./dunia";
+import { Gerak, type Badan } from "@/lib/scene/gerak";
 
 // Tes yang memuat file .glb langsung: persiapan gedung dan rakitan avatar.
 function muat(nama: string): Promise<GLTF> {
@@ -160,5 +161,48 @@ it("tiap kursi punya laptop di atas meja buat item meja", async () => {
     expect(laptop, n).toBeDefined();
     expect(laptop!.min.y).toBeGreaterThan(0.7);
     expect(laptop!.min.y).toBeLessThan(0.8);
+  }
+});
+
+it("tujuh titik tamu berada tepat di kursinya dan menghadap pusat meja rapat", async () => {
+  const root = (await muat("gedung")).scene;
+  root.updateMatrixWorld(true);
+  const pusat = new Box3().setFromObject(root.getObjectByName("meja_koordinator")!).getCenter(new Vector3());
+  const dunia = siapkan(root.clone(true));
+  for (let i = 1; i <= 7; i++) {
+    const p = root.getObjectByName(`kursi_tamu_${i}`)!.getWorldPosition(new Vector3());
+    const t = dunia.graf.titik.get(`seat_tamu_${i}`)!;
+    expect([t.x, t.z]).toEqual([p.x, p.z]);
+    expect(t.yaw).toBeCloseTo(Math.atan2(pusat.x - p.x, pusat.z - p.z));
+  }
+});
+
+it("avatar rapat masuk, pindah kursi, pulang, lalu masuk lagi tanpa menembus meja", async () => {
+  const root = (await muat("gedung")).scene;
+  root.updateMatrixWorld(true);
+  // Meja setengah lingkaran dengan sisi datar di belakang (z maks). Titik berdiri sebelum duduk memang mepet tepinya,
+  // jadi yang dicek bagian dalam lengkungnya saja.
+  const box = new Box3().setFromObject(root.getObjectByName("meja_koordinator")!);
+  const r = (box.max.x - box.min.x) / 2 - 0.15;
+  const diMeja = (x: number, z: number) => z < box.max.z && Math.hypot(x - (box.min.x + box.max.x) / 2, z - box.max.z) < r;
+  const dunia = siapkan(root.clone(true));
+  const kelas = (slug: string, kode: string) => ({ kind: "duduk", point: `seat_${slug}_${kode}`, clip: "duduk_ngetik" }) as const;
+  const tamu = (n: number) => ({ kind: "duduk", point: `seat_tamu_${n}`, clip: "duduk_santai" }) as const;
+  const badan: Badan = { pose: () => undefined, visible: () => undefined, play: (c) => (c === "duduk" || c === "berdiri" ? 1.33 : 1) };
+  for (const [slug, kode] of [["developer", "a1"], ["data_science", "b8"]] as const) {
+    for (const n of [1, 4, 7]) {
+      const g = new Gerak(dunia.graf, `door_${slug}`, kelas(slug, kode), badan);
+      for (const [tujuan, kursi] of [[tamu(n), `seat_tamu_${n}`], [tamu(8 - n === n ? 2 : 8 - n), null], [kelas(slug, kode), `seat_${slug}_${kode}`], [tamu(n), `seat_tamu_${n}`]] as const) {
+        g.setTujuan(tujuan);
+        let tembus = false;
+        for (let t = 0; t < 120; t += 0.05) {
+          g.update(0.05);
+          if (g.pose.visible && diMeja(g.pose.x, g.pose.z)) tembus = true;
+        }
+        expect(tembus).toBe(false);
+        expect(g.sedangJalan).toBe(false);
+        expect(g.pose.seated).toBe(kursi ?? tujuan.point);
+      }
+    }
   }
 });

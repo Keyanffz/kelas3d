@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { KURSI } from "../kursi";
 import type { Presence } from "../types";
 import { belok, buatGraf, depan, rute, type Titik } from "./graf";
-import { Gerak, type Badan } from "./gerak";
+import { Gerak, poseAwal, rencana, type Badan } from "./gerak";
 import { tujuanKelas, tujuanKunjungan, warnaLayar } from "./keadaan";
 import { bagianTampil, rakit } from "./tampilan";
 
@@ -216,4 +216,22 @@ describe("gerak avatar", () => {
     expect(visible).toBe(false);
     expect(near(gerak.pose, at("door_gedung"))).toBe(true);
   });
+});
+
+it.each(["developer", "data_science"])("rute rapat %s pergi dan pulang lewat kedua pintu, lalu duduk", (kelas) => {
+  const kursi = { name: "seat_tamu_1", x: 5.5762, z: 3.6632, yaw: -Math.PI / 2 };
+  const g = buatGraf([...titik, kursi]);
+  const asal = at(`seat_${kelas}_a1`);
+  const biasa = { kind: "duduk", point: asal.name, clip: "duduk_ngetik" } as const;
+  const tujuan = tujuanKelas([presence(1, { state: "istirahat", state_reason: "jadwal_istirahat", meeting: { user_id: 1, status: "hadir", seat: "tamu_1" } })], kelas, names).get(1)!;
+  expect(tujuan).toEqual({ kind: "duduk", point: kursi.name, clip: "duduk_santai" });
+  for (const [dari, ke] of [[biasa, tujuan], [tujuan, biasa]]) {
+    const steps = rencana(g, poseAwal(g, dari), ke, "door_gedung");
+    const path = steps.flatMap((s) => s.type === "walk" ? [s.to] : []);
+    const pintu = [`door_${kelas}`, "door_koordinator"].map((n) => path.findIndex((p) => near(p, at(n))));
+    expect(pintu.every((i) => i >= 0)).toBe(true);
+    expect(pintu[0] < pintu[1]).toBe(dari === biasa);
+    expect(path.some((p) => p.room === "lorong")).toBe(true);
+    expect(steps.at(-2)).toMatchObject({ type: "once", clip: "duduk" });
+  }
 });

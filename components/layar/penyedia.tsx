@@ -2,6 +2,7 @@
 
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, errorMessage } from "@/lib/api";
+import { useRapat } from "../rapat/penyedia";
 import { getEcho } from "@/lib/echo";
 import { applySesi, sesiAktif } from "@/lib/layar";
 import type { Me, ScreenSession } from "@/lib/types";
@@ -41,6 +42,7 @@ export function useLayar(): Nilai {
 // State lihat layar untuk seluruh halaman yang butuh login: daftar sesi dari REST dan event di channel
 // pribadi, plus koneksi WebRTC-nya. Dipasang di Session supaya prompt muncul di halaman mana pun.
 export function LayarProvider({ me, children }: { me: Me; children: ReactNode }) {
+  const { terima: terimaRapat, muat: muatRapat } = useRapat();
   const [sesi, setSesi] = useState<ScreenSession[]>([]);
   const [streams, setStreams] = useState<ReadonlyMap<number, MediaStream>>(new Map());
   const [pesan, setPesan] = useState<string | null>(null);
@@ -89,15 +91,17 @@ export function LayarProvider({ me, children }: { me: Me; children: ReactNode })
     // Channel ini juga yang membuat server tahu web saya sedang terbuka.
     echo
       .private(name)
-      .subscribed(muat)
+      .subscribed(() => { void muat(); void muatRapat(); })
+      .listen(".MeetingChanged", terimaRapat)
       .listen(".ScreenSessionChanged", (e: ScreenSession) => alive && terima(e));
     muat();
+    void muatRapat();
 
     return () => {
       alive = false;
       echo.leave(name);
     };
-  }, [me.id, terima, kirim]);
+  }, [me.id, terima, kirim, terimaRapat, muatRapat]);
 
   const tonton = useCallback(
     (s: ScreenSession) => {

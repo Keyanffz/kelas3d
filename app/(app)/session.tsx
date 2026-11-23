@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, use, useEffect, useState, type ReactNode } from "react";
+import { RapatProvider } from "@/components/rapat/penyedia";
+import { KartuRapat } from "@/components/rapat/kartu";
 import { KartuLayar } from "@/components/layar/kartu-layar";
 import { LayarProvider } from "@/components/layar/penyedia";
 import { api, ApiError, errorMessage } from "@/lib/api";
@@ -43,13 +45,16 @@ export function Session({ children }: { children: ReactNode }) {
     <MeContext value={me}>
       <SetMeContext value={setMe}>
         {/* Tinggi layar penuh: halaman 3D mengisi sisa tinggi, halaman lain bergulir di dalamnya. */}
-        <LayarProvider me={me}>
-          <div className="flex h-dvh flex-col">
-            <Header me={me} />
-            <div className="min-h-0 flex-1 overflow-auto">{children}</div>
-          </div>
-          <KartuLayar meId={me.id} />
-        </LayarProvider>
+        <RapatProvider>
+          <LayarProvider me={me}>
+            <div className="flex h-dvh flex-col">
+              <Header me={me} />
+              <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+            </div>
+            <KartuLayar meId={me.id} />
+            <KartuRapat />
+          </LayarProvider>
+        </RapatProvider>
       </SetMeContext>
     </MeContext>
   );

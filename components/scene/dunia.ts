@@ -1,6 +1,6 @@
 import { Box3, BufferGeometry, Euler, Group, Matrix4, Mesh, MeshStandardMaterial, Object3D, Quaternion, Vector3, type Material } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { buatGraf, type Graf, type Titik, type Vec } from "@/lib/scene/graf";
+import { buatGraf, yawOf, type Graf, type Titik, type Vec } from "@/lib/scene/graf";
 
 // Gedung yang sudah disiapkan untuk web: titik, akar ruangan, dinding, pintu, layar laptop, dan penghalang mode Jelajah.
 export interface Dunia {
@@ -90,6 +90,18 @@ export function siapkan(root: Object3D): Dunia {
     }
   });
 
+  // ponytail: turunkan titik dari kursi sampai seat_tamu_N ditambahkan di Blender.
+  const meja = root.getObjectByName("meja_koordinator");
+  if (meja) {
+    const pusat = new Box3().setFromObject(meja).getCenter(new Vector3());
+    for (let i = 1; i <= 7; i++) {
+      const name = `seat_tamu_${i}`;
+      const kursi = root.getObjectByName(`kursi_tamu_${i}`);
+      if (!kursi || titik.some((t) => t.name === name)) continue;
+      kursi.getWorldPosition(pos);
+      titik.push({ name, x: pos.x, z: pos.z, yaw: yawOf(pos, pusat) });
+    }
+  }
   const graf = buatGraf(titik);
   const pintu = pintuObj.map((obj): Pintu => {
     // Daun pintu dimodelkan terbuka 90 derajat ke dalam ruangan, satu objek dengan kusennya.

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "./api";
+import { terimaPosisi, type PosisiRapat } from "./rapat";
 import { getEcho } from "./echo";
 import { applyAnnouncements, applyCoordinatorMoved, applyHelpRequested, applyNudge, applyPresenceChanged } from "./presence";
 import type {
@@ -45,16 +46,27 @@ export function useRooms(slugs: string[], staff: boolean) {
     const kenalkan = (list: Coordinator[]) =>
       setKenal((all) => [...all.filter((c) => !list.some((x) => x.id === c.id)), ...list]);
 
-    const load = (slug: string) =>
-      api<PresenceList>(`/api/classrooms/${slug}/presences`).then(
+    const sesudahMuat = new Map<string, PosisiRapat[]>();
+    const load = (slug: string) => {
+      const posisi: PosisiRapat[] = [];
+      sesudahMuat.set(slug, posisi);
+      return api<PresenceList>(`/api/classrooms/${slug}/presences`).then(
         (data) => {
-          if (!alive) return;
-          setRooms((all) => ({ ...all, [slug]: data }));
+          if (!alive || sesudahMuat.get(slug) !== posisi) return;
+          sesudahMuat.delete(slug);
+          const anggota = posisi.reduce(terimaPosisi, data.data);
+          setRooms((all) => ({ ...all, [slug]: { ...data, data: anggota } }));
           kenalkan(data.coordinators);
           setError(null);
         },
-        (e: unknown) => alive && setError(errorMessage(e)),
+        (e: unknown) => {
+          if (alive && sesudahMuat.get(slug) === posisi) {
+            sesudahMuat.delete(slug);
+            setError(errorMessage(e));
+          }
+        },
       );
+    };
     loadRef.current = load;
 
     const muatPengumuman = (slug: string) =>
@@ -89,6 +101,10 @@ export function useRooms(slugs: string[], staff: boolean) {
             clearTimeout(timers.get(slug));
             timers.set(slug, setTimeout(() => load(slug), 1500));
           }
+        })
+        .listen(".MeetingChanged", (e: PosisiRapat) => {
+          sesudahMuat.get(slug)?.push(e);
+          patch(slug, (r) => ({ ...r, data: terimaPosisi(r.data, e) }));
         })
         .listen(".HelpRequested", (e: HelpRequestedEvent) => {
           patch(slug, (r) => ({ ...r, data: applyHelpRequested(r.data, e) }));
